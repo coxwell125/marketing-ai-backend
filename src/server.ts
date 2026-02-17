@@ -1,23 +1,22 @@
-import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import pinoHttp from "pino-http";
-import chatRoutes from "./routes/chat";
-import { logger } from "./utils/logger";
+import dotenv from "dotenv";
+import chatRouter from "./routes/chat";
+
+dotenv.config();
 
 const app = express();
 
-app.use(cors({ origin: true }));
+app.use(cors());
 app.use(express.json({ limit: "1mb" }));
-app.use(pinoHttp({ logger }));
 
 app.get("/health", (_req, res) => {
-  res.json({ ok: true });
+  res.json({ ok: true, service: "marketing-ai-backend" });
 });
 
-app.use("/api", chatRoutes);
+app.use("/api/chat", chatRouter);
 
-const port = Number(process.env.PORT || 3001);
+const port = Number(process.env.PORT || 8080);
 app.listen(port, () => {
-  logger.info({ port }, "Marketing AI backend running");
+  console.log(`✅ Backend running on port ${port}`);
 });
