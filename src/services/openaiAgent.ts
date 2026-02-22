@@ -1,81 +1,173 @@
 import OpenAI from "openai";
-import { callMcpTool } from "./mcpClient";
+import { McpClient } from "./mcpClient";
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+type RunAgentArgs = {
+  message: string;
+  rid?: string;
+};
 
-const tools: any[] = [
+type ToolCallLog = {
+  tool: string;
+  args: any;
+  ok: boolean;
+  error?: string;
+};
+
+const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: "function",
-    name: "marketing_test",
-    description: "Sanity test tool. Calls MCP tool marketing_test.",
-    parameters: {
-      type: "object",
-      properties: {
-        message: { type: "string", description: "Any short test message" }
+    function: {
+      name: "marketing_test",
+      description: "Test MCP tool call; returns a hello response",
+      parameters: {
+        type: "object",
+        properties: {
+          text: { type: "string" },
+        },
+        required: ["text"],
       },
-      required: ["message"],
-      additionalProperties: false
-    }
-  }
+    },
+  },
 ];
 
-export async function runMarketingAgent(userMessage: string) {
-  const model = process.env.OPENAI_MODEL || "gpt-4.1";
+function getClient() {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error("OPENAI_API_KEY is missing in environment variables");
+  return new OpenAI({ apiKey });
+}
 
-  const input: any[] = [
-    { role: "user", content: userMessage }
-  ];
-
-  let response: any;
+function safeJsonParse(input: string) {
   try {
-    response = await client.responses.create({
-      model,
-      tools,
-      input
-    });
+    return JSON.parse(input);
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * MCP-only fallback router for Phase 1.
+ * If OpenAI fails (429), we detect tool name in message and call MCP directly.
+ */
+async function mcpFallbackRouter(message: string): Promise<{ answer: string; toolCalls: ToolCallLog[] }> {
+  const toolCalls: ToolCallLog[] = [];
+
+  const msg = message.toLowerCase();
+
+  // ✅ Phase 1 supported tools (add more later)
+  const toolMap: Record<string, { tool: string; args: any }> = {
+    "marketing_test": { tool: "marketing_test", args: { message: "hello" } },
+    // Later examples:
+    // "get_meta_spend_today": { tool: "get_meta_spend_today", args: {} },
+    // "get_meta_leads_today": { tool: "get_meta_leads_today", args: {} },
+  };
+
+  // Detect tool keyword
+  const detected = Object.keys(toolMap).find((k) => msg.includes(k));
+
+  if (!detected) {
+    return {
+      answer:
+        "OpenAI is rate-limited (429). Fallback mode is ON, but I couldn’t detect a tool name in your message.\nTry: 'Call marketing_test and say hello'",
+      toolCalls,
+    };
+  }
+
+  const { tool, args } = toolMap[detected];
+
+  try {
+    const mcp = new McpClient(process.env.MCP_BASE_URL || "https://claude-marketing-mcp.onrender.com");
+    const res = await mcp.callTool(tool, args);
+    toolCalls.push({ tool, args, ok: true });
+
+    return {
+      answer: `MCP fallback success ✅\nTool: ${tool}\nResult: ${JSON.stringify(res)}`,
+      toolCalls,
+    };
   } catch (e: any) {
-    throw new Error(e?.error?.message || e?.message || "OpenAI request failed");
+    const errMsg = e?.message ?? String(e);
+    toolCalls.push({ tool, args, ok: false, error: errMsg });
+
+    return {
+      answer: `MCP fallback failed ❌\nTool: ${tool}\nError: ${errMsg}`,
+      toolCalls,
+    };
   }
+}
 
-  while (true) {
-    const output: any[] = response.output || [];
-    const toolCalls = output.filter((it: any) => it.type === "function_call");
+export async function runAgent({ message, rid }: RunAgentArgs): Promise<{ answer: string; toolCalls: ToolCallLog[] }> {
+  const toolCalls: ToolCallLog[] = [];
 
-    if (toolCalls.length === 0) break;
+  try {
+    const client = getClient();
 
-    // Keep model outputs in context
-    for (const item of output) input.push(item);
+    const first = await client.chat.completions.create({
+      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+      messages: [
+        { role: "system", content: "You are a marketing assistant. Use tools when needed." },
+        { role: "user", content: message },
+      ],
+      tools,
+      tool_choice: "auto",
+    });
 
-    // Execute tool calls
-    for (const call of toolCalls) {
-      const toolName = call.name as string;
+    const assistantMsg = first.choices[0]?.message;
 
-      let args: any = {};
+    if (!assistantMsg?.tool_calls || assistantMsg.tool_calls.length === 0) {
+      return { answer: assistantMsg?.content || "No response.", toolCalls };
+    }
+
+    const toolResultMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
+
+    for (const tc of assistantMsg.tool_calls) {
+      if (tc.type !== "function") continue;
+
+      const toolName = tc.function.name;
+      const args = safeJsonParse(tc.function.arguments);
+
       try {
-        args = call.arguments ? JSON.parse(call.arguments) : {};
-      } catch {
-        args = {};
+        const mcp = new McpClient(process.env.MCP_BASE_URL || "https://claude-marketing-mcp.onrender.com");
+        const mcpRes = await mcp.callTool(toolName, args);
+        toolCalls.push({ tool: toolName, args, ok: true });
+
+        toolResultMessages.push({
+          role: "tool",
+          tool_call_id: tc.id,
+          content: JSON.stringify(mcpRes),
+        });
+      } catch (e: any) {
+        const errMsg = e?.message ?? String(e);
+        toolCalls.push({ tool: toolName, args, ok: false, error: errMsg });
+
+        toolResultMessages.push({
+          role: "tool",
+          tool_call_id: tc.id,
+          content: JSON.stringify({ error: errMsg }),
+        });
       }
-
-      const result = await callMcpTool(toolName, args);
-
-      input.push({
-        type: "function_call_output",
-        call_id: call.call_id,
-        output: JSON.stringify(result)
-      });
     }
 
-    try {
-      response = await client.responses.create({
-        model,
-        tools,
-        input
-      });
-    } catch (e: any) {
-      throw new Error(e?.error?.message || e?.message || "OpenAI request failed");
+    const second = await client.chat.completions.create({
+      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+      messages: [
+        { role: "system", content: "You are a marketing assistant. Summarize tool results clearly." },
+        { role: "user", content: message },
+        assistantMsg,
+        ...toolResultMessages,
+      ],
+    });
+
+    return {
+      answer: second.choices[0]?.message?.content || "No response.",
+      toolCalls,
+    };
+  } catch (err: any) {
+    const status = err?.status || err?.response?.status;
+
+    // ✅ If OpenAI fails (429), use MCP-only fallback
+    if (status === 429) {
+      return await mcpFallbackRouter(message);
     }
+
+    throw err;
   }
-
-  return { text: response.output_text ?? "" };
 }

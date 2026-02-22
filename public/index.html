@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Marketing AI Assistant</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 0; background: #0b0f14; color: #e8eef6; }
+      .wrap { max-width: 900px; margin: 0 auto; padding: 24px; }
+      .card { background: #121826; border: 1px solid #202a3a; border-radius: 14px; padding: 16px; }
+      .row { display: flex; gap: 10px; margin-top: 12px; }
+      input, button, textarea {
+        border-radius: 12px; border: 1px solid #263246; background: #0f1522; color: #e8eef6;
+        padding: 12px; font-size: 14px;
+      }
+      input { flex: 1; }
+      button { cursor: pointer; min-width: 120px; }
+      button:hover { opacity: 0.9; }
+      .chat { height: 520px; overflow: auto; padding: 12px; background: #0f1522; border-radius: 12px; border: 1px solid #263246; }
+      .msg { margin: 10px 0; }
+      .role { font-size: 12px; opacity: 0.7; margin-bottom: 4px; }
+      .bubble { white-space: pre-wrap; background: #121826; border: 1px solid #263246; padding: 10px 12px; border-radius: 12px; }
+      .user .bubble { background: #172033; }
+      .sys { font-size: 12px; opacity: 0.8; margin-top: 12px; }
+      .pill { display: inline-block; padding: 4px 10px; border-radius: 999px; border: 1px solid #263246; background: #0f1522; }
+      .small { font-size: 12px; opacity: 0.8; }
+      .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      @media (max-width: 800px) { .two { grid-template-columns: 1fr; } .chat { height: 420px; } }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h2>Marketing AI Assistant</h2>
+      <div class="small">Ask: “How many Meta leads today?”, “Meta spend this month?”, “Best campaign today?”</div>
+
+      <div class="two" style="margin-top:12px;">
+        <div class="card">
+          <div class="pill">Auth</div>
+          <div class="row">
+            <input id="backendUrl" placeholder="Backend URL (default: current origin)" />
+            <button id="saveBackend">Save</button>
+          </div>
+          <div class="row">
+            <input id="apiKey" placeholder="x-api-key (example: cw-ai-prod)" />
+            <button id="saveKey">Save</button>
+          </div>
+          <div class="sys">Stored locally in your browser (not sent anywhere except your backend).</div>
+        </div>
+
+        <div class="card">
+          <div class="pill">Quick Actions</div>
+          <div class="row">
+            <button class="quick" data-q="How many Meta leads today?">Meta Leads Today</button>
+            <button class="quick" data-q="How much Meta spend today?">Meta Spend Today</button>
+          </div>
+          <div class="row">
+            <button class="quick" data-q="How much Meta spend this month?">Meta Spend Month</button>
+            <button class="quick" data-q="Which campaign is performing best today?">Best Campaign</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:12px;">
+        <div class="chat" id="chat"></div>
+
+        <div class="row">
+          <input id="msg" placeholder="Type your question..." />
+          <button id="send">Send</button>
+        </div>
+
+        <div class="sys">
+          If OpenAI is not enabled/available, you can still run direct tools by typing:
+          <span class="pill">Run get_meta_best_campaign</span>
+          or
+          <span class="pill">Run get_ga4_active_users_today</span>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const chat = document.getElementById("chat");
+      const msg = document.getElementById("msg");
+      const sendBtn = document.getElementById("send");
+      const apiKey = document.getElementById("apiKey");
+      const saveKey = document.getElementById("saveKey");
+      const backendUrl = document.getElementById("backendUrl");
+      const saveBackend = document.getElementById("saveBackend");
+
+      apiKey.value = localStorage.getItem("x-api-key") || "";
+      backendUrl.value = localStorage.getItem("backend-url") || window.location.origin;
+
+      saveKey.onclick = () => {
+        localStorage.setItem("x-api-key", apiKey.value.trim());
+        add("system", "Saved x-api-key.");
+      };
+      saveBackend.onclick = () => {
+        localStorage.setItem("backend-url", backendUrl.value.trim());
+        add("system", "Saved backend URL.");
+      };
+
+      document.querySelectorAll(".quick").forEach((b) => {
+        b.onclick = () => {
+          msg.value = b.dataset.q;
+          send();
+        };
+      });
+
+      function add(role, text) {
+        const wrap = document.createElement("div");
+        wrap.className = "msg " + (role === "user" ? "user" : "assistant");
+        const r = document.createElement("div");
+        r.className = "role";
+        r.textContent = role.toUpperCase();
+        const bubble = document.createElement("div");
+        bubble.className = "bubble";
+        bubble.textContent = text;
+        wrap.appendChild(r);
+        wrap.appendChild(bubble);
+        chat.appendChild(wrap);
+        chat.scrollTop = chat.scrollHeight;
+      }
+
+      function resolveUrl(path) {
+        const base = (localStorage.getItem("backend-url") || "").trim().replace(/\/+$/, "");
+        if (!base) return path;
+        if (/^https?:\/\//i.test(path)) return path;
+        return base + path;
+      }
+
+      async function postJson(url, body) {
+        const key = (localStorage.getItem("x-api-key") || "").trim();
+        let res;
+        try {
+          res = await fetch(resolveUrl(url), {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(key ? { "x-api-key": key } : {}),
+            },
+            body: JSON.stringify(body),
+          });
+        } catch (e) {
+          return { ok: false, status: 0, raw: "Network error. Check backend URL and server status.", json: null };
+        }
+
+        const text = await res.text();
+        let json = null;
+        try { json = JSON.parse(text); } catch {}
+        if (!res.ok) {
+          return { ok: false, status: res.status, raw: text, json };
+        }
+        return { ok: true, json };
+      }
+
+      async function send() {
+        const q = msg.value.trim();
+        if (!q) return;
+        add("user", q);
+        msg.value = "";
+
+        // Prefer /api/chat (AI), fallback to /api/tools/run when user explicitly types "Run <tool>"
+        const runMatch = q.match(/^run\s+([a-zA-Z0-9_]+)\s*$/i);
+        if (runMatch) {
+          const tool = runMatch[1];
+          add("assistant", "Running tool: " + tool + " ...");
+          const r = await postJson("/api/tools/run", { tool, args: {} });
+          if (!r.ok) return add("assistant", "Error: " + (r.json?.error || r.raw));
+          return add("assistant", JSON.stringify(r.json, null, 2));
+        }
+
+        add("assistant", "Thinking...");
+        const r = await postJson("/api/chat", { message: q });
+        // Remove the "Thinking..." message
+        chat.removeChild(chat.lastChild);
+
+        if (!r.ok) {
+          if (r.status === 401) return add("assistant", "Error 401 Unauthorized. Enter correct x-api-key.");
+          if (r.status === 404) return add("assistant", "Error 404. Check backend URL and route.");
+          add("assistant", "Error: " + (r.json?.error || r.raw));
+          return;
+        }
+
+        const answer = r.json?.answer ?? JSON.stringify(r.json, null, 2);
+        add("assistant", answer);
+      }
+
+      sendBtn.onclick = send;
+      msg.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") send();
+      });
+
+      add("system", "UI loaded. Save backend URL and x-api-key, then ask your question.");
+    </script>
+  </body>
+</html>
