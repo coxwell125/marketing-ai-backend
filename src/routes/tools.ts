@@ -18,7 +18,10 @@ router.post("/run", async (req: Request, res: Response, next: NextFunction) => {
     }
 
     const { tool, args } = parsed.data;
-    const result = await runToolByName(tool, args || {});
+    const result = await runToolByName(tool, args || {}, {
+      metaAccountId: req.header("x-meta-account-id") || undefined,
+      role: (req as any)?.auth?.role,
+    });
     return res.json(result);
   } catch (err) {
     return next(err);

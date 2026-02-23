@@ -1,5 +1,6 @@
 // src/services/metaApi.ts
 import { z } from "zod";
+import { resolveMetaAccountId } from "./metaTenant";
 
 const MetaEnvSchema = z.object({
   META_ACCESS_TOKEN: z.string().min(1),
@@ -9,10 +10,11 @@ const MetaEnvSchema = z.object({
 
 type MetaEnv = z.infer<typeof MetaEnvSchema>;
 
-function getMetaEnv(): MetaEnv {
+function getMetaEnv(accountId?: string): MetaEnv {
+  const resolvedAccount = resolveMetaAccountId(accountId);
   const parsed = MetaEnvSchema.safeParse({
     META_ACCESS_TOKEN: process.env.META_ACCESS_TOKEN,
-    META_AD_ACCOUNT_ID: process.env.META_AD_ACCOUNT_ID,
+    META_AD_ACCOUNT_ID: resolvedAccount,
     META_API_VERSION: process.env.META_API_VERSION ?? "v20.0",
   });
 
@@ -92,18 +94,31 @@ function parseNumberLoose(v: any): number {
 
 function extractLeadsFromActions(actions: any): number {
   if (!Array.isArray(actions)) return 0;
-  let leads = 0;
+  const byType = new Map<string, number>();
 
   for (const a of actions) {
     const type = typeof a?.action_type === "string" ? a.action_type : "";
+    if (!LEAD_ACTION_TYPES.has(type)) continue;
     const value = parseNumberLoose(a?.value);
-
-    if (LEAD_ACTION_TYPES.has(type)) {
-      leads += value;
-    }
+    byType.set(type, value);
   }
 
-  return leads;
+  // Avoid double counting: Meta can return the same conversion in multiple lead action types.
+  // Use strict priority to align with Ads Manager "Results".
+  const preferred = [
+    "lead",
+    "onsite_conversion.lead_grouped",
+    "offsite_conversion.fb_pixel_lead",
+    "offsite_conversion.lead",
+    "offsite_conversion.custom.lead",
+    "omni_lead",
+  ];
+  for (const t of preferred) {
+    const v = byType.get(t);
+    if (Number.isFinite(v as number)) return Number(v);
+  }
+
+  return 0;
 }
 
 function extractCplFromCostPerActionType(costPerActionType: any): number | null {
@@ -151,13 +166,152 @@ function todayDatePresetForIST(): { since: string; until: string } {
   return { since: ymd, until: ymd };
 }
 
+function getInstagramBusinessAccountId(): string {
+  const id = String(process.env.IG_BUSINESS_ACCOUNT_ID || "").trim();
+  if (!id) throw new Error("IG_BUSINESS_ACCOUNT_ID not set");
+  return id;
+}
+
+function firstDayOfMonthInIST(): string {
+  const now = new Date();
+  const utcMs = now.getTime() + now.getTimezoneOffset() * 60_000;
+  const istMs = utcMs + 5.5 * 60 * 60_000;
+  const ist = new Date(istMs);
+  const y = ist.getUTCFullYear();
+  const m = String(ist.getUTCMonth() + 1).padStart(2, "0");
+  return `${y}-${m}-01`;
+}
+
+function parseIsoDateOnly(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return formatYMDInIST(d);
+}
+
+type IgReelRow = {
+  media_id: string;
+  caption: string;
+  permalink: string;
+  published_at: string;
+  plays: number;
+  reach: number;
+  saved: number;
+  likes: number;
+  comments: number;
+  shares: number;
+};
+
+async function fetchIgMediaBaseRows(env: MetaEnv): Promise<
+  Array<{ id: string; caption: string; permalink: string; media_type: string; timestamp: string }>
+> {
+  const igId = getInstagramBusinessAccountId();
+  const fields = ["id", "caption", "permalink", "media_type", "timestamp"].join(",");
+  const params = encodeParams({
+    access_token: env.META_ACCESS_TOKEN,
+    fields,
+    limit: 100,
+  });
+  const url = `https://graph.facebook.com/${env.META_API_VERSION}/${igId}/media?${params}`;
+  const data = await metaFetchJson(url);
+  const rows = Array.isArray(data?.data) ? data.data : [];
+  return rows
+    .map((r: any) => ({
+      id: String(r?.id || ""),
+      caption: String(r?.caption || ""),
+      permalink: String(r?.permalink || ""),
+      media_type: String(r?.media_type || ""),
+      timestamp: String(r?.timestamp || ""),
+    }))
+    .filter((r: any) => r.id && r.media_type === "REEL");
+}
+
+async function fetchIgReelInsights(env: MetaEnv, mediaId: string): Promise<{
+  plays: number;
+  reach: number;
+  saved: number;
+  likes: number;
+  comments: number;
+  shares: number;
+}> {
+  // Metric availability varies by account/version; request broad set and parse what is returned.
+  const metrics = "plays,reach,saved,likes,comments,shares,total_interactions";
+  const params = encodeParams({
+    access_token: env.META_ACCESS_TOKEN,
+    metric: metrics,
+  });
+  const url = `https://graph.facebook.com/${env.META_API_VERSION}/${mediaId}/insights?${params}`;
+  const data = await metaFetchJson(url);
+  const rows = Array.isArray(data?.data) ? data.data : [];
+
+  const out = {
+    plays: 0,
+    reach: 0,
+    saved: 0,
+    likes: 0,
+    comments: 0,
+    shares: 0,
+  };
+
+  for (const r of rows) {
+    const name = String(r?.name || "");
+    const value = parseNumberLoose(r?.values?.[0]?.value ?? r?.value);
+    if (name === "plays") out.plays = value;
+    else if (name === "reach") out.reach = value;
+    else if (name === "saved") out.saved = value;
+    else if (name === "likes") out.likes = value;
+    else if (name === "comments") out.comments = value;
+    else if (name === "shares") out.shares = value;
+  }
+
+  return out;
+}
+
+async function fetchIgReelsForRange(
+  accountId: string | undefined,
+  sinceYmd: string,
+  untilYmd: string
+): Promise<IgReelRow[]> {
+  const env = getMetaEnv(accountId);
+  const baseRows = await fetchIgMediaBaseRows(env);
+
+  const filtered = baseRows.filter((r) => {
+    const ymd = parseIsoDateOnly(r.timestamp);
+    return !!ymd && ymd >= sinceYmd && ymd <= untilYmd;
+  });
+
+  const out: IgReelRow[] = [];
+  for (const row of filtered) {
+    let metrics = {
+      plays: 0,
+      reach: 0,
+      saved: 0,
+      likes: 0,
+      comments: 0,
+      shares: 0,
+    };
+    try {
+      metrics = await fetchIgReelInsights(env, row.id);
+    } catch {
+      // keep zeros when insights metric is unavailable for a reel
+    }
+    out.push({
+      media_id: row.id,
+      caption: row.caption,
+      permalink: row.permalink,
+      published_at: row.timestamp,
+      ...metrics,
+    });
+  }
+  return out;
+}
+
 /** -----------------------------
  * Existing exports (assumed used)
  * ---------------------------- */
 
 export type MetaSpendResult = {
   ok: true;
-  tool: "get_meta_spend_today" | "get_meta_spend_month";
+  tool: "get_meta_spend_today" | "get_meta_spend_month" | "get_meta_spend_last_7d";
   timezone: "Asia/Kolkata";
   as_of_ist: string;
   spend: number;
@@ -166,14 +320,23 @@ export type MetaSpendResult = {
 
 export type MetaLeadsResult = {
   ok: true;
-  tool: "get_meta_leads_today";
+  tool: "get_meta_leads_today" | "get_meta_leads_last_30d" | "get_meta_leads_last_7d";
   timezone: "Asia/Kolkata";
   as_of_ist: string;
   leads: number;
 };
 
-export async function getMetaSpendToday(): Promise<MetaSpendResult> {
-  const env = getMetaEnv();
+export type MetaAdsRunningTodayResult = {
+  ok: true;
+  tool: "get_meta_ads_running_today";
+  timezone: "Asia/Kolkata";
+  as_of_ist: string;
+  active_ads: number;
+  ads_with_spend_today: number;
+};
+
+export async function getMetaSpendToday(accountId?: string): Promise<MetaSpendResult> {
+  const env = getMetaEnv(accountId);
   const { since, until } = todayDatePresetForIST();
 
   const fields = ["spend", "account_currency"].join(",");
@@ -202,8 +365,8 @@ export async function getMetaSpendToday(): Promise<MetaSpendResult> {
   };
 }
 
-export async function getMetaSpendMonth(): Promise<MetaSpendResult> {
-  const env = getMetaEnv();
+export async function getMetaSpendMonth(accountId?: string): Promise<MetaSpendResult> {
+  const env = getMetaEnv(accountId);
 
   const fields = ["spend", "account_currency"].join(",");
   const params = encodeParams({
@@ -230,8 +393,8 @@ export async function getMetaSpendMonth(): Promise<MetaSpendResult> {
   };
 }
 
-export async function getMetaLeadsToday(): Promise<MetaLeadsResult> {
-  const env = getMetaEnv();
+export async function getMetaLeadsToday(accountId?: string): Promise<MetaLeadsResult> {
+  const env = getMetaEnv(accountId);
   const { since, until } = todayDatePresetForIST();
 
   const fields = ["actions"].join(",");
@@ -258,6 +421,123 @@ export async function getMetaLeadsToday(): Promise<MetaLeadsResult> {
   };
 }
 
+export async function getMetaSpendLast7d(accountId?: string): Promise<MetaSpendResult> {
+  const env = getMetaEnv(accountId);
+
+  const fields = ["spend", "account_currency"].join(",");
+  const params = encodeParams({
+    access_token: env.META_ACCESS_TOKEN,
+    level: "account",
+    fields,
+    date_preset: "last_7d",
+  });
+
+  const url = `https://graph.facebook.com/${env.META_API_VERSION}/${env.META_AD_ACCOUNT_ID}/insights?${params}`;
+  const data = await metaFetchJson(url);
+
+  const row = Array.isArray(data?.data) && data.data.length > 0 ? data.data[0] : null;
+  const spend = parseNumberLoose(row?.spend);
+  const currency = typeof row?.account_currency === "string" ? row.account_currency : null;
+
+  return {
+    ok: true,
+    tool: "get_meta_spend_last_7d",
+    timezone: "Asia/Kolkata",
+    as_of_ist: istNowIso(),
+    spend,
+    currency,
+  };
+}
+
+export async function getMetaLeadsLast30d(accountId?: string): Promise<MetaLeadsResult> {
+  const env = getMetaEnv(accountId);
+
+  const fields = ["actions"].join(",");
+  const params = encodeParams({
+    access_token: env.META_ACCESS_TOKEN,
+    level: "account",
+    fields,
+    date_preset: "last_30d",
+  });
+
+  const url = `https://graph.facebook.com/${env.META_API_VERSION}/${env.META_AD_ACCOUNT_ID}/insights?${params}`;
+  const data = await metaFetchJson(url);
+
+  const row = Array.isArray(data?.data) && data.data.length > 0 ? data.data[0] : null;
+  const leads = extractLeadsFromActions(row?.actions);
+
+  return {
+    ok: true,
+    tool: "get_meta_leads_last_30d",
+    timezone: "Asia/Kolkata",
+    as_of_ist: istNowIso(),
+    leads,
+  };
+}
+
+export async function getMetaLeadsLast7d(accountId?: string): Promise<MetaLeadsResult> {
+  const env = getMetaEnv(accountId);
+
+  const fields = ["actions"].join(",");
+  const params = encodeParams({
+    access_token: env.META_ACCESS_TOKEN,
+    level: "account",
+    fields,
+    date_preset: "last_7d",
+  });
+
+  const url = `https://graph.facebook.com/${env.META_API_VERSION}/${env.META_AD_ACCOUNT_ID}/insights?${params}`;
+  const data = await metaFetchJson(url);
+
+  const row = Array.isArray(data?.data) && data.data.length > 0 ? data.data[0] : null;
+  const leads = extractLeadsFromActions(row?.actions);
+
+  return {
+    ok: true,
+    tool: "get_meta_leads_last_7d",
+    timezone: "Asia/Kolkata",
+    as_of_ist: istNowIso(),
+    leads,
+  };
+}
+
+export async function getMetaAdsRunningToday(accountId?: string): Promise<MetaAdsRunningTodayResult> {
+  const env = getMetaEnv(accountId);
+
+  // Active ads currently in account
+  const adsParams = encodeParams({
+    access_token: env.META_ACCESS_TOKEN,
+    fields: "id,effective_status",
+    limit: 500,
+  });
+  const adsUrl = `https://graph.facebook.com/${env.META_API_VERSION}/${env.META_AD_ACCOUNT_ID}/ads?${adsParams}`;
+  const adsData = await metaFetchJson(adsUrl);
+  const adRows = Array.isArray(adsData?.data) ? adsData.data : [];
+  const activeAds = adRows.filter((r: any) => String(r?.effective_status || "") === "ACTIVE").length;
+
+  // Ads that delivered/spent today
+  const spendParams = encodeParams({
+    access_token: env.META_ACCESS_TOKEN,
+    level: "ad",
+    fields: "ad_id,spend",
+    date_preset: "today",
+    limit: 500,
+  });
+  const spendUrl = `https://graph.facebook.com/${env.META_API_VERSION}/${env.META_AD_ACCOUNT_ID}/insights?${spendParams}`;
+  const spendData = await metaFetchJson(spendUrl);
+  const spendRows = Array.isArray(spendData?.data) ? spendData.data : [];
+  const adsWithSpendToday = spendRows.filter((r: any) => parseNumberLoose(r?.spend) > 0).length;
+
+  return {
+    ok: true,
+    tool: "get_meta_ads_running_today",
+    timezone: "Asia/Kolkata",
+    as_of_ist: istNowIso(),
+    active_ads: activeAds,
+    ads_with_spend_today: adsWithSpendToday,
+  };
+}
+
 /** -----------------------------
  * Tool 3: get_meta_best_campaign
  * ---------------------------- */
@@ -276,14 +556,17 @@ export type MetaBestCampaignResult = {
   tool: "get_meta_best_campaign";
   timezone: "Asia/Kolkata";
   as_of_ist: string;
-  window: "today";
+  window: "today" | "this_month" | "maximum";
   best: MetaBestCampaignRow | null;
   top: MetaBestCampaignRow[]; // sorted leaderboard
   note?: string;
 };
 
-export async function getMetaBestCampaign(): Promise<MetaBestCampaignResult> {
-  const env = getMetaEnv();
+export async function getMetaBestCampaign(
+  accountId?: string,
+  period: "today" | "this_month" | "maximum" = "today"
+): Promise<MetaBestCampaignResult> {
+  const env = getMetaEnv(accountId);
   const { since, until } = todayDatePresetForIST();
 
   // Campaign-level insights
@@ -300,7 +583,9 @@ export async function getMetaBestCampaign(): Promise<MetaBestCampaignResult> {
     access_token: env.META_ACCESS_TOKEN,
     level: "campaign",
     fields,
-    time_range: JSON.stringify({ since, until }),
+    ...(period === "today"
+      ? { time_range: JSON.stringify({ since, until }) }
+      : { date_preset: period }),
     // limit for safety; you can raise if needed
     limit: 500,
   });
@@ -351,11 +636,167 @@ export async function getMetaBestCampaign(): Promise<MetaBestCampaignResult> {
     tool: "get_meta_best_campaign",
     timezone: "Asia/Kolkata",
     as_of_ist: istNowIso(),
-    window: "today",
+    window: period,
     best,
     top: parsed.slice(0, 10),
     note: best
       ? undefined
-      : "No campaign insights returned for today (check account activity, permissions, or reporting delays).",
+      : `No campaign insights returned for ${period} (check account activity, permissions, or reporting delays).`,
   };
+}
+
+export type InstagramReelsTodayResult = {
+  ok: true;
+  tool: "get_instagram_reels_today";
+  timezone: "Asia/Kolkata";
+  as_of_ist: string;
+  reels_count: number;
+  total_plays: number;
+  total_reach: number;
+  total_saved: number;
+  top: IgReelRow[];
+};
+
+export type InstagramReelsMonthResult = {
+  ok: true;
+  tool: "get_instagram_reels_month";
+  timezone: "Asia/Kolkata";
+  as_of_ist: string;
+  reels_count: number;
+  total_plays: number;
+  total_reach: number;
+  total_saved: number;
+  top: IgReelRow[];
+};
+
+export type InstagramBestReelResult = {
+  ok: true;
+  tool: "get_instagram_best_reel";
+  timezone: "Asia/Kolkata";
+  as_of_ist: string;
+  window: "today" | "this_month" | "maximum";
+  best: IgReelRow | null;
+  top: IgReelRow[];
+};
+
+export async function getInstagramReelsToday(accountId?: string): Promise<InstagramReelsTodayResult> {
+  const { since, until } = todayDatePresetForIST();
+  const reels = await fetchIgReelsForRange(accountId, since, until);
+  reels.sort((a, b) => b.plays - a.plays || b.reach - a.reach);
+  return {
+    ok: true,
+    tool: "get_instagram_reels_today",
+    timezone: "Asia/Kolkata",
+    as_of_ist: istNowIso(),
+    reels_count: reels.length,
+    total_plays: reels.reduce((s, r) => s + r.plays, 0),
+    total_reach: reels.reduce((s, r) => s + r.reach, 0),
+    total_saved: reels.reduce((s, r) => s + r.saved, 0),
+    top: reels.slice(0, 10),
+  };
+}
+
+export async function getInstagramReelsMonth(accountId?: string): Promise<InstagramReelsMonthResult> {
+  const since = firstDayOfMonthInIST();
+  const until = formatYMDInIST(new Date());
+  const reels = await fetchIgReelsForRange(accountId, since, until);
+  reels.sort((a, b) => b.plays - a.plays || b.reach - a.reach);
+  return {
+    ok: true,
+    tool: "get_instagram_reels_month",
+    timezone: "Asia/Kolkata",
+    as_of_ist: istNowIso(),
+    reels_count: reels.length,
+    total_plays: reels.reduce((s, r) => s + r.plays, 0),
+    total_reach: reels.reduce((s, r) => s + r.reach, 0),
+    total_saved: reels.reduce((s, r) => s + r.saved, 0),
+    top: reels.slice(0, 10),
+  };
+}
+
+export async function getInstagramBestReel(
+  accountId?: string,
+  period: "today" | "this_month" | "maximum" = "today"
+): Promise<InstagramBestReelResult> {
+  let since = firstDayOfMonthInIST();
+  let until = formatYMDInIST(new Date());
+  if (period === "today") {
+    const r = todayDatePresetForIST();
+    since = r.since;
+    until = r.until;
+  } else if (period === "maximum") {
+    since = "2010-01-01";
+    until = formatYMDInIST(new Date());
+  }
+
+  const reels = await fetchIgReelsForRange(accountId, since, until);
+  reels.sort((a, b) => b.plays - a.plays || b.reach - a.reach || b.saved - a.saved);
+  return {
+    ok: true,
+    tool: "get_instagram_best_reel",
+    timezone: "Asia/Kolkata",
+    as_of_ist: istNowIso(),
+    window: period,
+    best: reels[0] || null,
+    top: reels.slice(0, 10),
+  };
+}
+
+export async function verifyMetaToken(accountId?: string): Promise<{
+  ok: boolean;
+  token_valid: boolean;
+  account_access: boolean;
+  account_id: string;
+  app_scoped_user?: { id: string; name: string };
+  sample_spend_today?: number;
+  currency?: string | null;
+  error?: string;
+}> {
+  try {
+    const env = getMetaEnv(accountId);
+    const meParams = encodeParams({
+      access_token: env.META_ACCESS_TOKEN,
+      fields: "id,name",
+    });
+    const meUrl = `https://graph.facebook.com/${env.META_API_VERSION}/me?${meParams}`;
+    const me = await metaFetchJson(meUrl);
+
+    const { since, until } = todayDatePresetForIST();
+    const insightsParams = encodeParams({
+      access_token: env.META_ACCESS_TOKEN,
+      level: "account",
+      fields: "spend,account_currency",
+      time_range: JSON.stringify({ since, until }),
+      limit: 1,
+    });
+    const insightsUrl = `https://graph.facebook.com/${env.META_API_VERSION}/${env.META_AD_ACCOUNT_ID}/insights?${insightsParams}`;
+    const insights = await metaFetchJson(insightsUrl);
+    const row = Array.isArray(insights?.data) && insights.data.length ? insights.data[0] : null;
+
+    return {
+      ok: true,
+      token_valid: true,
+      account_access: true,
+      account_id: env.META_AD_ACCOUNT_ID,
+      app_scoped_user: {
+        id: String(me?.id || ""),
+        name: String(me?.name || ""),
+      },
+      sample_spend_today: parseNumberLoose(row?.spend),
+      currency: typeof row?.account_currency === "string" ? row.account_currency : null,
+    };
+  } catch (err: any) {
+    const msg = err?.message ? String(err.message) : "Unknown Meta API error";
+    let accountId = String(process.env.META_AD_ACCOUNT_ID || "");
+    try {
+      accountId = getMetaEnv(accountId || undefined).META_AD_ACCOUNT_ID;
+    } catch {}
+    return {
+      ok: false,
+      token_valid: !/access token/i.test(msg),
+      account_access: !/ad account|permission|unsupported|not found|invalid/i.test(msg),
+      account_id: accountId,
+      error: msg,
+    };
+  }
 }

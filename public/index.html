@@ -5,130 +5,874 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Marketing AI Assistant</title>
     <style>
-      body { font-family: Arial, sans-serif; margin: 0; background: #0b0f14; color: #e8eef6; }
-      .wrap { max-width: 900px; margin: 0 auto; padding: 24px; }
-      .card { background: #121826; border: 1px solid #202a3a; border-radius: 14px; padding: 16px; }
-      .row { display: flex; gap: 10px; margin-top: 12px; }
-      input, button, textarea {
-        border-radius: 12px; border: 1px solid #263246; background: #0f1522; color: #e8eef6;
-        padding: 12px; font-size: 14px;
+      :root {
+        --bg: #0b101b;
+        --panel: #10192c;
+        --panel-2: #13203a;
+        --line: #2a3b59;
+        --line-soft: #1f2b43;
+        --text: #e8eefb;
+        --muted: #9caed0;
+        --accent: #8dc1ff;
+        --assistant: #13213d;
+        --user: #20406f;
+        --good: #8fe3b2;
       }
-      input { flex: 1; }
-      button { cursor: pointer; min-width: 120px; }
-      button:hover { opacity: 0.9; }
-      .chat { height: 520px; overflow: auto; padding: 12px; background: #0f1522; border-radius: 12px; border: 1px solid #263246; }
-      .msg { margin: 10px 0; }
-      .role { font-size: 12px; opacity: 0.7; margin-bottom: 4px; }
-      .bubble { white-space: pre-wrap; background: #121826; border: 1px solid #263246; padding: 10px 12px; border-radius: 12px; }
-      .user .bubble { background: #172033; }
-      .sys { font-size: 12px; opacity: 0.8; margin-top: 12px; }
-      .pill { display: inline-block; padding: 4px 10px; border-radius: 999px; border: 1px solid #263246; background: #0f1522; }
-      .small { font-size: 12px; opacity: 0.8; }
-      .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-      @media (max-width: 800px) { .two { grid-template-columns: 1fr; } .chat { height: 420px; } }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        color: var(--text);
+        font: 14px/1.5 "Segoe UI", "Inter", "Helvetica Neue", sans-serif;
+        background:
+          radial-gradient(1200px 700px at 88% -10%, #203c6d 0, transparent 60%),
+          radial-gradient(900px 500px at -10% 100%, #17284a 0, transparent 60%),
+          var(--bg);
+      }
+      .app {
+        display: grid;
+        grid-template-columns: 300px 1fr;
+        min-height: 100vh;
+      }
+      .sidebar {
+        border-right: 1px solid var(--line-soft);
+        padding: 14px;
+        background: linear-gradient(180deg, #0e1628, #0c1323);
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .main {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+      .topbar {
+        border-bottom: 1px solid var(--line-soft);
+        padding: 12px 16px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #0f182b;
+        gap: 10px;
+      }
+      .brand {
+        display: flex;
+        flex-direction: column;
+      }
+      .title {
+        font-weight: 700;
+        font-size: 16px;
+      }
+      .subtle {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+      }
+      .col {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      button,
+      input,
+      select,
+      textarea {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--panel-2);
+        color: var(--text);
+        padding: 10px 11px;
+        font-size: 13px;
+      }
+      button {
+        cursor: pointer;
+      }
+      button:hover {
+        border-color: #4b6694;
+      }
+      button:disabled {
+        opacity: 0.65;
+        cursor: not-allowed;
+      }
+      .ghost {
+        background: transparent;
+        border-color: var(--line-soft);
+      }
+      .good {
+        color: var(--good);
+      }
+      .search {
+        width: 100%;
+      }
+      .list {
+        overflow: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        flex: 1;
+      }
+      .item {
+        border: 1px solid var(--line-soft);
+        border-radius: 10px;
+        background: #111b31;
+        text-align: left;
+        padding: 10px;
+      }
+      .item.active {
+        border-color: #3f6298;
+        background: #182743;
+      }
+      .item .t {
+        font-weight: 600;
+        font-size: 13px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .item .d {
+        font-size: 11px;
+        color: var(--muted);
+        margin-top: 4px;
+      }
+      .folder-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .folder-chip {
+        border: 1px solid #385989;
+        border-radius: 999px;
+        padding: 4px 9px;
+        font-size: 11px;
+        background: #12203a;
+        cursor: pointer;
+      }
+      .folder-chip.active {
+        border-color: #6f9de0;
+        background: #19315a;
+      }
+      .conv-row {
+        border: 1px solid var(--line-soft);
+        border-radius: 10px;
+        background: #111b31;
+        padding: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        position: relative;
+      }
+      .conv-row.active {
+        border-color: #3f6298;
+        background: #182743;
+      }
+      .conv-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .conv-open {
+        border: 0;
+        padding: 0;
+        background: transparent;
+        text-align: left;
+        color: var(--text);
+        flex: 1;
+      }
+      .conv-actions {
+        display: flex;
+        gap: 6px;
+      }
+      .mini {
+        font-size: 11px;
+        padding: 4px 7px;
+        border-radius: 8px;
+      }
+      .kebab {
+        border: 1px solid #2f4469;
+        border-radius: 8px;
+        background: transparent;
+        color: #cfe0ff;
+        padding: 3px 8px;
+        line-height: 1;
+        font-size: 17px;
+        min-width: 34px;
+      }
+      .conv-menu {
+        position: absolute;
+        top: 38px;
+        right: 10px;
+        z-index: 30;
+        min-width: 170px;
+        border: 1px solid #2a3b59;
+        border-radius: 12px;
+        background: #101a2f;
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+        padding: 6px;
+        display: none;
+      }
+      .conv-menu.show {
+        display: block;
+      }
+      .conv-menu button {
+        width: 100%;
+        text-align: left;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--text);
+        padding: 8px 10px;
+      }
+      .conv-menu button:hover {
+        background: #1a2a49;
+      }
+      .conv-menu button.danger {
+        color: #ff8c8c;
+      }
+      .kpis {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--line-soft);
+        background: #0f1729;
+      }
+      .statusbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        border-bottom: 1px solid var(--line-soft);
+        background: #101a2f;
+      }
+      .status-dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: #6d7f9f;
+      }
+      .status-text {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .status-spacer {
+        flex: 1;
+      }
+      .ga4-badge {
+        font-size: 11px;
+        border-radius: 999px;
+        padding: 4px 10px;
+        border: 1px solid #314a73;
+        background: #12203a;
+        color: #b8cbec;
+      }
+      .ga4-badge.ok {
+        border-color: #2f7f57;
+        background: #123027;
+        color: #99e5bf;
+      }
+      .ga4-badge.warn {
+        border-color: #7b6a2f;
+        background: #312910;
+        color: #f4dc98;
+      }
+      .ga4-badge.err {
+        border-color: #7f3939;
+        background: #331414;
+        color: #f3b0b0;
+      }
+      .kpi {
+        border: 1px solid var(--line-soft);
+        border-radius: 12px;
+        background: #111d34;
+        padding: 10px;
+      }
+      .kpi .name {
+        font-size: 11px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+      }
+      .kpi .value {
+        margin-top: 4px;
+        font-size: 17px;
+        font-weight: 700;
+      }
+      .chat-wrap {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        padding: 12px;
+        gap: 10px;
+        position: relative;
+      }
+      .chat {
+        flex: 1;
+        overflow: auto;
+        border: 1px solid var(--line-soft);
+        border-radius: 14px;
+        background: linear-gradient(180deg, #0f182c, #0c1425);
+        padding: 14px;
+      }
+      .empty {
+        border: 1px dashed #30476f;
+        border-radius: 14px;
+        padding: 16px;
+        background: #111b30;
+      }
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 10px;
+      }
+      .chip {
+        border: 1px solid #385989;
+        border-radius: 999px;
+        padding: 6px 10px;
+        font-size: 12px;
+        background: #12203a;
+        cursor: pointer;
+      }
+      .msg {
+        display: flex;
+        gap: 10px;
+        margin: 14px 0;
+        animation: rise 0.18s ease-out;
+      }
+      @keyframes rise {
+        from {
+          transform: translateY(6px);
+          opacity: 0;
+        }
+        to {
+          transform: translateY(0);
+          opacity: 1;
+        }
+      }
+      .msg.user {
+        justify-content: flex-end;
+      }
+      .msg.user .avatar {
+        order: 2;
+      }
+      .msg.user .content {
+        order: 1;
+        align-items: flex-end;
+      }
+      .avatar {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        font-size: 11px;
+        font-weight: 700;
+        background: #1f3458;
+        border: 1px solid #35527f;
+        flex: 0 0 28px;
+      }
+      .msg.user .avatar {
+        background: #2f5b96;
+        border-color: #507dc0;
+      }
+      .content {
+        max-width: min(78%, 860px);
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .meta {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 11px;
+        color: var(--muted);
+        text-transform: uppercase;
+      }
+      .ts {
+        color: #7f93b8;
+      }
+      .bubble {
+        border: 1px solid #2b3f63;
+        border-radius: 12px;
+        background: var(--assistant);
+        padding: 11px 12px;
+        overflow: auto;
+      }
+      .msg.user .bubble {
+        background: var(--user);
+        border-color: #3f68a6;
+      }
+      .bubble p {
+        margin: 0 0 8px;
+      }
+      .bubble p:last-child {
+        margin-bottom: 0;
+      }
+      .bubble ul,
+      .bubble ol {
+        margin: 7px 0 7px 20px;
+        padding: 0;
+      }
+      .bubble table {
+        border-collapse: collapse;
+        width: 100%;
+        margin: 8px 0;
+      }
+      .bubble th,
+      .bubble td {
+        border: 1px solid #314a73;
+        padding: 6px 8px;
+        text-align: left;
+      }
+      .bubble th {
+        background: #162641;
+      }
+      .bubble pre {
+        margin: 8px 0;
+        padding: 10px;
+        border-radius: 9px;
+        border: 1px solid #30476f;
+        background: #0e1729;
+        overflow: auto;
+      }
+      .bubble code {
+        border: 1px solid #334c76;
+        background: #0f1a2e;
+        border-radius: 6px;
+        padding: 1px 5px;
+        font-family: Consolas, "Courier New", monospace;
+      }
+      .bubble pre code {
+        border: 0;
+        background: transparent;
+        padding: 0;
+      }
+      .actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 6px;
+      }
+      .icon {
+        font-size: 11px;
+        padding: 4px 8px;
+        border: 1px solid #2f4469;
+        border-radius: 8px;
+        background: transparent;
+      }
+      .edit-box {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        width: clamp(280px, 56vw, 760px);
+        max-width: 100%;
+      }
+      .edit-input {
+        width: 100%;
+        min-height: 140px;
+        resize: vertical;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #0f1b33;
+        color: var(--text);
+        padding: 10px;
+        font: inherit;
+      }
+      .composer {
+        border: 1px solid var(--line-soft);
+        border-radius: 14px;
+        padding: 10px;
+        background: #101a2f;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .composer input {
+        width: 100%;
+        font-size: 15px;
+      }
+      .typing {
+        display: inline-flex;
+        gap: 4px;
+      }
+      .scroll-top-btn {
+        position: absolute;
+        right: 22px;
+        bottom: 110px;
+        width: 44px;
+        height: 44px;
+        border-radius: 999px;
+        border: 1px solid #365689;
+        background: #142546;
+        color: #e8eefb;
+        font-size: 20px;
+        font-weight: 700;
+        display: grid;
+        place-items: center;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.18s ease;
+      }
+      .scroll-top-btn.show {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--accent);
+        opacity: 0.35;
+        animation: pulse 1.2s infinite ease-in-out;
+      }
+      .dot:nth-child(2) {
+        animation-delay: 0.2s;
+      }
+      .dot:nth-child(3) {
+        animation-delay: 0.4s;
+      }
+      @keyframes pulse {
+        0%,
+        80%,
+        100% {
+          transform: scale(0.75);
+          opacity: 0.35;
+        }
+        40% {
+          transform: scale(1);
+          opacity: 1;
+        }
+      }
+      @media (max-width: 1060px) {
+        .kpis {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+      @media (max-width: 900px) {
+        .app {
+          grid-template-columns: 1fr;
+        }
+        .sidebar {
+          border-right: 0;
+          border-bottom: 1px solid var(--line-soft);
+          max-height: 320px;
+        }
+        .content {
+          max-width: 90%;
+        }
+      }
+      @media (max-width: 560px) {
+        .kpis {
+          grid-template-columns: 1fr;
+        }
+        .edit-box {
+          width: 100%;
+        }
+        .edit-input {
+          min-height: 120px;
+        }
+      }
     </style>
   </head>
   <body>
-    <div class="wrap">
-      <h2>Marketing AI Assistant</h2>
-      <div class="small">Ask: “How many Meta leads today?”, “Meta spend this month?”, “Best campaign today?”</div>
-
-      <div class="two" style="margin-top:12px;">
-        <div class="card">
-          <div class="pill">Auth</div>
-          <div class="row">
-            <input id="backendUrl" placeholder="Backend URL (default: current origin)" />
-            <button id="saveBackend">Save</button>
-          </div>
-          <div class="row">
-            <input id="apiKey" placeholder="x-api-key (example: cw-ai-prod)" />
-            <button id="saveKey">Save</button>
-          </div>
-          <div class="sys">Stored locally in your browser (not sent anywhere except your backend).</div>
-        </div>
-
-        <div class="card">
-          <div class="pill">Quick Actions</div>
-          <div class="row">
-            <button class="quick" data-q="How many Meta leads today?">Meta Leads Today</button>
-            <button class="quick" data-q="How much Meta spend today?">Meta Spend Today</button>
-          </div>
-          <div class="row">
-            <button class="quick" data-q="How much Meta spend this month?">Meta Spend Month</button>
-            <button class="quick" data-q="Which campaign is performing best today?">Best Campaign</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="card" style="margin-top:12px;">
-        <div class="chat" id="chat"></div>
-
+    <div class="app">
+      <aside class="sidebar">
         <div class="row">
-          <input id="msg" placeholder="Type your question..." />
-          <button id="send">Send</button>
+          <button id="newChat">+ New Chat</button>
+          <button id="clearChat" class="ghost">Clear</button>
+        </div>
+        <div class="row">
+          <button id="newFolder" class="ghost">+ Folder</button>
+          <button id="renameFolder" class="ghost">Rename</button>
+          <button id="deleteFolder" class="ghost">Delete</button>
+        </div>
+        <div id="folderList" class="folder-list"></div>
+        <input id="searchConv" class="search" placeholder="Search conversations..." />
+        <div class="subtle">Conversation History</div>
+        <div id="convList" class="list"></div>
+
+        <div class="col">
+          <div class="subtle">Backend URL</div>
+          <input id="backendUrl" placeholder="http://localhost:8080" />
+          <div class="subtle">x-api-key</div>
+          <input id="apiKey" placeholder="cw-ai-prod" />
+          <div class="subtle">Meta Account</div>
+          <select id="metaAccount">
+            <option value="">Default account</option>
+          </select>
+          <div class="row">
+            <button id="saveCfg">Save</button>
+            <button id="verifyMeta" class="ghost">Verify Meta</button>
+            <button id="verifyGa4" class="ghost">Verify GA4</button>
+            <button id="exportChat" class="ghost">Export</button>
+          </div>
+        </div>
+      </aside>
+
+      <main class="main">
+        <div class="topbar">
+          <div class="brand">
+            <div class="title">Marketing AI Assistant</div>
+            <div class="subtle">Premium local copilot for Meta and GA4 insights</div>
+          </div>
+          <div class="row">
+            <button id="renameChat" class="ghost">Rename</button>
+            <button id="deleteChat" class="ghost">Delete</button>
+            <button id="regenerate" class="ghost">Regenerate</button>
+          </div>
         </div>
 
-        <div class="sys">
-          If OpenAI is not enabled/available, you can still run direct tools by typing:
-          <span class="pill">Run get_meta_best_campaign</span>
-          or
-          <span class="pill">Run get_ga4_active_users_today</span>
+        <div class="kpis">
+          <div class="kpi"><div class="name">Meta Leads (Today)</div><div id="kpiLeads" class="value">-</div></div>
+          <div class="kpi"><div class="name">Meta Leads (Last 30D)</div><div id="kpiLeads30d" class="value">-</div></div>
+          <div class="kpi"><div class="name">Meta Spend (Today)</div><div id="kpiSpendToday" class="value">-</div></div>
+          <div class="kpi"><div class="name">Meta Spend (Month)</div><div id="kpiSpendMonth" class="value">-</div></div>
+          <div class="kpi"><div class="name">GA4 Active Users</div><div id="kpiUsers" class="value">-</div></div>
+          <div class="kpi"><div class="name">GA4 Sessions (Today)</div><div id="kpiSessionsToday" class="value">-</div></div>
+          <div class="kpi"><div class="name">Best Campaign</div><div id="kpiBestCampaign" class="value">-</div></div>
+          <div class="kpi"><div class="name">Best Campaign CPL</div><div id="kpiBestCpl" class="value">-</div></div>
+          <div class="kpi"><div class="name">Weakest Campaign</div><div id="kpiWorstCampaign" class="value">-</div></div>
+          <div class="kpi"><div class="name">Meta Leads (Last 7D)</div><div id="kpiLeads7d" class="value">-</div></div>
+          <div class="kpi"><div class="name">Meta Spend (Last 7D)</div><div id="kpiSpend7d" class="value">-</div></div>
+          <div class="kpi"><div class="name">GA4 Sessions (Last 7D)</div><div id="kpiGa4Sessions7d" class="value">-</div></div>
         </div>
-      </div>
+        <div class="statusbar">
+          <div id="statusDot" class="status-dot"></div>
+          <div id="statusText" class="status-text">Checking connection...</div>
+          <div class="status-spacer"></div>
+          <div id="ga4Badge" class="ga4-badge">GA4: checking...</div>
+        </div>
+
+        <div class="chat-wrap">
+          <div id="chat" class="chat"></div>
+          <div class="composer">
+            <div class="row">
+              <input id="msg" placeholder="Ask for performance insights... (Ctrl+K to focus)" />
+              <button id="send">Send</button>
+            </div>
+            <div class="chips" id="chips"></div>
+            <div class="subtle">Tips: supports markdown tables/lists, copy, history, regenerate, export</div>
+          </div>
+        </div>
+      </main>
     </div>
+    <button id="scrollTopBtn" class="scroll-top-btn" title="Back to top">↑</button>
 
     <script>
-      const chat = document.getElementById("chat");
-      const msg = document.getElementById("msg");
-      const sendBtn = document.getElementById("send");
-      const apiKey = document.getElementById("apiKey");
-      const saveKey = document.getElementById("saveKey");
-      const backendUrl = document.getElementById("backendUrl");
-      const saveBackend = document.getElementById("saveBackend");
+      const STORAGE_KEY = "mai-conversations-v4";
+      const STORAGE_CURR = "mai-current-conv-id-v4";
+      const STORAGE_FOLDERS = "mai-folders-v1";
+      const STORAGE_ACTIVE_FOLDER = "mai-active-folder-v1";
+      const LEGACY_STORAGE_KEYS = ["mai-conversations-v3", "mai-conversations-v2", "mai-conversations"];
+      const LEGACY_CURR_KEYS = ["mai-current-conv-id", "mai-current-conv-id-v3", "mai-current-conv-id-v2"];
+      const SUGGESTIONS = [
+        "How many Meta leads today?",
+        "How many Meta leads in last 30 days?",
+        "How much Meta spend today?",
+        "Meta spend this month",
+        "Which campaign is performing best today?",
+        "GA4 active users today",
+        "GA4 active users yesterday",
+        "GA4 active users last 7 days",
+        "GA4 sessions today",
+        "What is my 5-day ad spend estimate?",
+        "Which ad is performing very poor and why?",
+        "Compare Meta spend today vs yesterday",
+        "What is my CPL trend this week?",
+        "Show me overall Meta + GA4 performance snapshot",
+        "Give me top 3 actions to improve lead quality",
+        "Where is budget getting wasted today?",
+        "How can I reduce CPL from today data?",
+      ];
 
-      apiKey.value = localStorage.getItem("x-api-key") || "";
-      backendUrl.value = localStorage.getItem("backend-url") || window.location.origin;
-
-      saveKey.onclick = () => {
-        localStorage.setItem("x-api-key", apiKey.value.trim());
-        add("system", "Saved x-api-key.");
+      const el = {
+        chat: document.getElementById("chat"),
+        msg: document.getElementById("msg"),
+        send: document.getElementById("send"),
+        regen: document.getElementById("regenerate"),
+        clear: document.getElementById("clearChat"),
+        newChat: document.getElementById("newChat"),
+        newFolder: document.getElementById("newFolder"),
+        renameFolder: document.getElementById("renameFolder"),
+        deleteFolder: document.getElementById("deleteFolder"),
+        folderList: document.getElementById("folderList"),
+        rename: document.getElementById("renameChat"),
+        del: document.getElementById("deleteChat"),
+        convList: document.getElementById("convList"),
+        search: document.getElementById("searchConv"),
+        backendUrl: document.getElementById("backendUrl"),
+        apiKey: document.getElementById("apiKey"),
+        metaAccount: document.getElementById("metaAccount"),
+        saveCfg: document.getElementById("saveCfg"),
+        verifyMeta: document.getElementById("verifyMeta"),
+        verifyGa4: document.getElementById("verifyGa4"),
+        export: document.getElementById("exportChat"),
+        chips: document.getElementById("chips"),
+        kpiLeads: document.getElementById("kpiLeads"),
+        kpiLeads30d: document.getElementById("kpiLeads30d"),
+        kpiLeads7d: document.getElementById("kpiLeads7d"),
+        kpiSpendToday: document.getElementById("kpiSpendToday"),
+        kpiSpendMonth: document.getElementById("kpiSpendMonth"),
+        kpiSpend7d: document.getElementById("kpiSpend7d"),
+        kpiUsers: document.getElementById("kpiUsers"),
+        kpiSessionsToday: document.getElementById("kpiSessionsToday"),
+        kpiGa4Sessions7d: document.getElementById("kpiGa4Sessions7d"),
+        kpiBestCampaign: document.getElementById("kpiBestCampaign"),
+        kpiBestCpl: document.getElementById("kpiBestCpl"),
+        kpiWorstCampaign: document.getElementById("kpiWorstCampaign"),
+        statusDot: document.getElementById("statusDot"),
+        statusText: document.getElementById("statusText"),
+        ga4Badge: document.getElementById("ga4Badge"),
+        scrollTopBtn: document.getElementById("scrollTopBtn"),
       };
-      saveBackend.onclick = () => {
-        localStorage.setItem("backend-url", backendUrl.value.trim());
-        add("system", "Saved backend URL.");
-      };
 
-      document.querySelectorAll(".quick").forEach((b) => {
-        b.onclick = () => {
-          msg.value = b.dataset.q;
-          send();
-        };
-      });
+      el.backendUrl.value = localStorage.getItem("backend-url") || window.location.origin;
+      el.apiKey.value = localStorage.getItem("x-api-key") || "";
+      el.metaAccount.value = localStorage.getItem("meta-account-id") || "";
 
-      function add(role, text) {
-        const wrap = document.createElement("div");
-        wrap.className = "msg " + (role === "user" ? "user" : "assistant");
-        const r = document.createElement("div");
-        r.className = "role";
-        r.textContent = role.toUpperCase();
-        const bubble = document.createElement("div");
-        bubble.className = "bubble";
-        bubble.textContent = text;
-        wrap.appendChild(r);
-        wrap.appendChild(bubble);
-        chat.appendChild(wrap);
-        chat.scrollTop = chat.scrollHeight;
+      let conversations = [];
+      let folders = [];
+      let activeFolderId = localStorage.getItem(STORAGE_ACTIVE_FOLDER) || "all";
+      let currentConversationId = localStorage.getItem(STORAGE_CURR) || "";
+      let editingMessageId = null;
+      let openConvMenuId = null;
+
+      function uid() {
+        return `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+      }
+      function nowIso() {
+        return new Date().toISOString();
+      }
+      function fmtTime(iso) {
+        return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      }
+      function escapeHtml(str) {
+        return String(str)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll("\"", "&quot;")
+          .replaceAll("'", "&#39;");
+      }
+
+      function formatInline(text) {
+        return text
+          .replace(/`([^`]+)`/g, "<code>$1</code>")
+          .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+          .replace(/\*(.+?)\*/g, "<em>$1</em>");
+      }
+      function toCells(row) {
+        return row
+          .split("|")
+          .map((c) => c.trim())
+          .filter((c, i, arr) => !(i === 0 && c === "") && !(i === arr.length - 1 && c === ""));
+      }
+      function renderMarkdown(raw) {
+        if (!raw) return "";
+        const codeBlocks = [];
+        const tokenized = raw.replace(/```([\w-]*)\n([\s\S]*?)```/g, (_, lang, code) => {
+          const idx = codeBlocks.push({ lang: lang || "", code }) - 1;
+          return `@@CODE_BLOCK_${idx}@@`;
+        });
+        const safe = escapeHtml(tokenized);
+        const lines = safe.split("\n");
+        const out = [];
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          const next = lines[i + 1] || "";
+
+          if (line.includes("|") && /^\s*\|?[-:\s|]+\|?\s*$/.test(next)) {
+            const rows = [line];
+            i += 2;
+            while (i < lines.length && lines[i].includes("|")) {
+              rows.push(lines[i]);
+              i++;
+            }
+            i--;
+            const header = toCells(rows[0]);
+            const body = rows.slice(1).map(toCells);
+            out.push("<table><thead><tr>" + header.map((h) => `<th>${formatInline(h)}</th>`).join("") + "</tr></thead><tbody>");
+            body.forEach((r) => out.push("<tr>" + r.map((c) => `<td>${formatInline(c)}</td>`).join("") + "</tr>"));
+            out.push("</tbody></table>");
+            continue;
+          }
+
+          if (/^\s*[-*]\s+/.test(line)) {
+            const items = [line.replace(/^\s*[-*]\s+/, "")];
+            i++;
+            while (i < lines.length && /^\s*[-*]\s+/.test(lines[i])) {
+              items.push(lines[i].replace(/^\s*[-*]\s+/, ""));
+              i++;
+            }
+            i--;
+            out.push("<ul>" + items.map((it) => `<li>${formatInline(it)}</li>`).join("") + "</ul>");
+            continue;
+          }
+
+          if (/^\s*\d+\.\s+/.test(line)) {
+            const items = [line.replace(/^\s*\d+\.\s+/, "")];
+            i++;
+            while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) {
+              items.push(lines[i].replace(/^\s*\d+\.\s+/, ""));
+              i++;
+            }
+            i--;
+            out.push("<ol>" + items.map((it) => `<li>${formatInline(it)}</li>`).join("") + "</ol>");
+            continue;
+          }
+
+          if (!line.trim()) {
+            out.push("");
+            continue;
+          }
+          out.push(`<p>${formatInline(line)}</p>`);
+        }
+
+        let html = out.join("\n");
+        html = html.replace(/@@CODE_BLOCK_(\d+)@@/g, (_, n) => {
+          const b = codeBlocks[Number(n)];
+          const cls = b.lang ? ` class="language-${escapeHtml(b.lang)}"` : "";
+          return `<pre><code${cls}>${escapeHtml(b.code)}</code></pre>`;
+        });
+        return html;
+      }
+
+      function getBackendBase() {
+        const fromStorage = (localStorage.getItem("backend-url") || "").trim();
+        const fromInput = (el.backendUrl?.value || "").trim();
+        return (fromStorage || fromInput || window.location.origin).replace(/\/+$/, "");
+      }
+
+      function getApiKey() {
+        const fromStorage = (localStorage.getItem("x-api-key") || "").trim();
+        const fromInput = (el.apiKey?.value || "").trim();
+        return fromStorage || fromInput;
+      }
+
+      function getMetaAccountId() {
+        const fromStorage = (localStorage.getItem("meta-account-id") || "").trim();
+        const fromInput = (el.metaAccount?.value || "").trim();
+        return fromStorage || fromInput;
       }
 
       function resolveUrl(path) {
-        const base = (localStorage.getItem("backend-url") || "").trim().replace(/\/+$/, "");
+        const base = getBackendBase();
         if (!base) return path;
         if (/^https?:\/\//i.test(path)) return path;
         return base + path;
       }
-
       async function postJson(url, body) {
-        const key = (localStorage.getItem("x-api-key") || "").trim();
+        const key = getApiKey();
+        const accountId = getMetaAccountId();
         let res;
         try {
           res = await fetch(resolveUrl(url), {
@@ -136,60 +880,936 @@
             headers: {
               "Content-Type": "application/json",
               ...(key ? { "x-api-key": key } : {}),
+              ...(accountId ? { "x-meta-account-id": accountId } : {}),
             },
             body: JSON.stringify(body),
           });
-        } catch (e) {
+        } catch {
           return { ok: false, status: 0, raw: "Network error. Check backend URL and server status.", json: null };
         }
-
         const text = await res.text();
         let json = null;
-        try { json = JSON.parse(text); } catch {}
-        if (!res.ok) {
-          return { ok: false, status: res.status, raw: text, json };
-        }
+        try {
+          json = JSON.parse(text);
+        } catch {}
+        if (!res.ok) return { ok: false, status: res.status, raw: text, json };
         return { ok: true, json };
       }
 
-      async function send() {
-        const q = msg.value.trim();
-        if (!q) return;
-        add("user", q);
-        msg.value = "";
+      async function getJson(url) {
+        const key = getApiKey();
+        const accountId = getMetaAccountId();
+        try {
+          const res = await fetch(resolveUrl(url), {
+            method: "GET",
+            headers: {
+              ...(key ? { "x-api-key": key } : {}),
+              ...(accountId ? { "x-meta-account-id": accountId } : {}),
+            },
+          });
+          const text = await res.text();
+          let json = null;
+          try {
+            json = JSON.parse(text);
+          } catch {}
+          if (!res.ok) return { ok: false, status: res.status, raw: text, json };
+          return { ok: true, json };
+        } catch {
+          return { ok: false, status: 0, raw: "Network error", json: null };
+        }
+      }
 
-        // Prefer /api/chat (AI), fallback to /api/tools/run when user explicitly types "Run <tool>"
-        const runMatch = q.match(/^run\s+([a-zA-Z0-9_]+)\s*$/i);
-        if (runMatch) {
-          const tool = runMatch[1];
-          add("assistant", "Running tool: " + tool + " ...");
-          const r = await postJson("/api/tools/run", { tool, args: {} });
-          if (!r.ok) return add("assistant", "Error: " + (r.json?.error || r.raw));
-          return add("assistant", JSON.stringify(r.json, null, 2));
+      function getCurrentConversation() {
+        return conversations.find((c) => c.id === currentConversationId) || null;
+      }
+      function getLastUserPrompt(c) {
+        if (!c) return "";
+        for (let i = c.messages.length - 1; i >= 0; i--) {
+          if (c.messages[i].role === "user") return c.messages[i].text;
+        }
+        return "";
+      }
+      function buildTitle(messages) {
+        const first = messages.find((m) => m.role === "user");
+        if (!first) return "New chat";
+        const t = first.text.trim();
+        return t.length > 38 ? t.slice(0, 38) + "..." : t;
+      }
+
+      function persist() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
+        localStorage.setItem(STORAGE_FOLDERS, JSON.stringify(folders));
+        localStorage.setItem(STORAGE_ACTIVE_FOLDER, activeFolderId);
+        localStorage.setItem(STORAGE_CURR, currentConversationId);
+      }
+      function createConversation(seed = "") {
+        const c = {
+          id: uid(),
+          title: seed ? seed.slice(0, 38) + (seed.length > 38 ? "..." : "") : "New chat",
+          createdAt: nowIso(),
+          updatedAt: nowIso(),
+          messages: [],
+          folderId: activeFolderId === "all" ? null : activeFolderId,
+        };
+        conversations.unshift(c);
+        currentConversationId = c.id;
+        persist();
+        renderConversationList();
+        renderCurrentConversation();
+      }
+      function ensureConversation() {
+        if (!conversations.length) createConversation();
+        if (!getCurrentConversation()) currentConversationId = conversations[0].id;
+      }
+      function load() {
+        try {
+          let raw = localStorage.getItem(STORAGE_KEY);
+          let curr = localStorage.getItem(STORAGE_CURR) || "";
+
+          if (!raw) {
+            for (const key of LEGACY_STORAGE_KEYS) {
+              const legacy = localStorage.getItem(key);
+              if (legacy) {
+                raw = legacy;
+                localStorage.setItem(STORAGE_KEY, legacy);
+                break;
+              }
+            }
+          }
+
+          if (!curr) {
+            for (const key of LEGACY_CURR_KEYS) {
+              const legacyCurr = localStorage.getItem(key);
+              if (legacyCurr) {
+                curr = legacyCurr;
+                localStorage.setItem(STORAGE_CURR, legacyCurr);
+                break;
+              }
+            }
+          }
+
+          conversations = raw ? JSON.parse(raw) : [];
+          if (curr) currentConversationId = curr;
+          if (!Array.isArray(conversations)) conversations = [];
+          const rawFolders = localStorage.getItem(STORAGE_FOLDERS);
+          folders = rawFolders ? JSON.parse(rawFolders) : [];
+          if (!Array.isArray(folders)) folders = [];
+          if (activeFolderId !== "all" && !folders.some((f) => String(f.id) === String(activeFolderId))) {
+            activeFolderId = "all";
+          }
+        } catch {
+          conversations = [];
+          folders = [];
+        }
+        // Ensure config is persisted even if user has typed but not clicked Save.
+        if (!localStorage.getItem("backend-url") && (el.backendUrl.value || "").trim()) {
+          localStorage.setItem("backend-url", el.backendUrl.value.trim());
+        }
+        if (!localStorage.getItem("x-api-key") && (el.apiKey.value || "").trim()) {
+          localStorage.setItem("x-api-key", el.apiKey.value.trim());
+        }
+        if (!localStorage.getItem("meta-account-id") && (el.metaAccount.value || "").trim()) {
+          localStorage.setItem("meta-account-id", el.metaAccount.value.trim());
+        }
+        ensureConversation();
+      }
+
+      async function loadMetaAccounts() {
+        const resp = await getJson("/api/meta/accounts");
+        if (!resp.ok) return;
+        const accounts = Array.isArray(resp.json?.accounts) ? resp.json.accounts : [];
+        const defaultAccount = String(resp.json?.default_account || "");
+        const selected = getMetaAccountId();
+
+        const opts = [`<option value="">Default account</option>`];
+        for (const account of accounts) {
+          const safe = escapeHtml(String(account));
+          opts.push(`<option value="${safe}">${safe}</option>`);
+        }
+        el.metaAccount.innerHTML = opts.join("");
+
+        const nextValue =
+          (selected && accounts.includes(selected) && selected) ||
+          (defaultAccount && accounts.includes(defaultAccount) && defaultAccount) ||
+          "";
+        el.metaAccount.value = nextValue;
+        localStorage.setItem("meta-account-id", nextValue);
+      }
+
+      function getFolderName(folderId) {
+        if (!folderId) return "Unfiled";
+        const f = folders.find((x) => x.id === folderId);
+        return f?.name || "Unknown folder";
+      }
+
+      function renderFolderList() {
+        el.folderList.innerHTML = "";
+        const items = [{ id: "all", name: "All" }, ...folders];
+        items.forEach((f) => {
+          const b = document.createElement("button");
+          b.className = "folder-chip" + (String(activeFolderId) === String(f.id) ? " active" : "");
+          b.textContent = f.name;
+          b.onclick = () => {
+            activeFolderId = String(f.id);
+            persist();
+            renderFolderList();
+            renderConversationList();
+          };
+          el.folderList.appendChild(b);
+        });
+      }
+
+      function createFolder() {
+        const name = prompt("Folder name");
+        if (!name || !name.trim()) return;
+        const n = name.trim();
+        if (folders.some((f) => f.name.toLowerCase() === n.toLowerCase())) return;
+        const folder = { id: uid(), name: n, createdAt: nowIso(), updatedAt: nowIso() };
+        folders.unshift(folder);
+        activeFolderId = folder.id;
+        persist();
+        renderFolderList();
+        renderConversationList();
+      }
+
+      function renameActiveFolder() {
+        if (activeFolderId === "all") return;
+        const folder = folders.find((f) => f.id === activeFolderId);
+        if (!folder) return;
+        const next = prompt("Rename folder", folder.name);
+        if (!next || !next.trim()) return;
+        folder.name = next.trim();
+        folder.updatedAt = nowIso();
+        persist();
+        renderFolderList();
+        renderConversationList();
+      }
+
+      function deleteActiveFolder() {
+        if (activeFolderId === "all") return;
+        const folder = folders.find((f) => f.id === activeFolderId);
+        if (!folder) return;
+        if (!confirm(`Delete folder "${folder.name}"? Chats will move to Unfiled.`)) return;
+        conversations.forEach((c) => {
+          if (c.folderId === folder.id) c.folderId = null;
+        });
+        folders = folders.filter((f) => f.id !== folder.id);
+        activeFolderId = "all";
+        persist();
+        renderFolderList();
+        renderConversationList();
+      }
+
+      function moveConversationToFolder(conversationId) {
+        const c = conversations.find((x) => x.id === conversationId);
+        if (!c) return;
+        const choices = ["0) Unfiled", ...folders.map((f, i) => `${i + 1}) ${f.name}`)].join("\n");
+        const pick = prompt(`Move chat to folder:\n${choices}`, "0");
+        if (pick === null) return;
+        const idx = Number(pick);
+        if (!Number.isFinite(idx)) return;
+        if (idx === 0) c.folderId = null;
+        else if (idx >= 1 && idx <= folders.length) c.folderId = folders[idx - 1].id;
+        c.updatedAt = nowIso();
+        persist();
+        renderConversationList();
+      }
+
+      function renameConversationById(conversationId) {
+        const c = conversations.find((x) => x.id === conversationId);
+        if (!c) return;
+        const name = prompt("Rename chat", c.title);
+        if (!name || !name.trim()) return;
+        c.title = name.trim();
+        c.updatedAt = nowIso();
+        persist();
+        renderConversationList();
+      }
+
+      function deleteConversationById(conversationId) {
+        conversations = conversations.filter((x) => x.id !== conversationId);
+        if (!conversations.length) createConversation();
+        else if (currentConversationId === conversationId) currentConversationId = conversations[0].id;
+        persist();
+        renderConversationList();
+        renderCurrentConversation();
+      }
+
+      function renderConversationList() {
+        const query = el.search.value.trim().toLowerCase();
+        el.convList.innerHTML = "";
+        conversations
+          .filter((c) => {
+            const matchesQuery = !query || c.title.toLowerCase().includes(query);
+            const matchesFolder =
+              activeFolderId === "all" || String(c.folderId || "") === String(activeFolderId);
+            return matchesQuery && matchesFolder;
+          })
+          .forEach((c) => {
+            const row = document.createElement("div");
+            row.className = "conv-row" + (c.id === currentConversationId ? " active" : "");
+
+            const head = document.createElement("div");
+            head.className = "conv-head";
+            const openBtn = document.createElement("button");
+            openBtn.className = "conv-open";
+            openBtn.innerHTML = `<div class="t">${escapeHtml(c.title)}</div>`;
+            openBtn.onclick = () => {
+              currentConversationId = c.id;
+              openConvMenuId = null;
+              persist();
+              renderConversationList();
+              renderCurrentConversation();
+            };
+
+            const menuBtn = document.createElement("button");
+            menuBtn.className = "kebab";
+            menuBtn.textContent = "...";
+            menuBtn.title = "More actions";
+            menuBtn.onclick = (e) => {
+              e.stopPropagation();
+              openConvMenuId = openConvMenuId === c.id ? null : c.id;
+              renderConversationList();
+            };
+
+            const meta = document.createElement("div");
+            meta.className = "d";
+            meta.textContent = `${new Date(c.updatedAt).toLocaleString()} · ${getFolderName(c.folderId)}`;
+
+            const menu = document.createElement("div");
+            menu.className = "conv-menu" + (openConvMenuId === c.id ? " show" : "");
+
+            const renameBtn = document.createElement("button");
+            renameBtn.textContent = "Rename";
+            renameBtn.onclick = (e) => {
+              e.stopPropagation();
+              openConvMenuId = null;
+              renameConversationById(c.id);
+            };
+            const moveBtn = document.createElement("button");
+            moveBtn.textContent = "Move to folder";
+            moveBtn.onclick = (e) => {
+              e.stopPropagation();
+              openConvMenuId = null;
+              moveConversationToFolder(c.id);
+            };
+
+            const delBtn = document.createElement("button");
+            delBtn.className = "danger";
+            delBtn.textContent = "Delete";
+            delBtn.onclick = (e) => {
+              e.stopPropagation();
+              openConvMenuId = null;
+              deleteConversationById(c.id);
+            };
+
+            menu.appendChild(renameBtn);
+            menu.appendChild(moveBtn);
+            menu.appendChild(delBtn);
+            head.appendChild(openBtn);
+            head.appendChild(menuBtn);
+            row.appendChild(head);
+            row.appendChild(meta);
+            row.appendChild(menu);
+            el.convList.appendChild(row);
+          });
+      }
+
+      function parseKpisFromText(text) {
+        const s = String(text || "");
+        const leads = s.match(/(\d+)\s+meta leads today/i);
+        const spendToday = s.match(/spend today is\s+([^\.\n]+)/i);
+        const spendMonth = s.match(/spend this month is\s+([^\.\n]+)/i);
+        const users = s.match(/(\d+)\s+ga4 active users today/i);
+
+        if (leads) el.kpiLeads.textContent = leads[1];
+        if (spendToday) el.kpiSpendToday.textContent = spendToday[1].trim();
+        if (spendMonth) el.kpiSpendMonth.textContent = spendMonth[1].trim();
+        if (users) el.kpiUsers.textContent = users[1];
+      }
+
+      function formatCurrencyINR(n) {
+        const num = Number(n);
+        if (!Number.isFinite(num)) return "-";
+        try {
+          return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(num);
+        } catch {
+          return `INR ${Math.round(num)}`;
+        }
+      }
+
+      function setKpiLoading() {
+        el.kpiLeads.textContent = "...";
+        el.kpiLeads30d.textContent = "...";
+        el.kpiLeads7d.textContent = "...";
+        el.kpiSpendToday.textContent = "...";
+        el.kpiSpendMonth.textContent = "...";
+        el.kpiSpend7d.textContent = "...";
+        el.kpiUsers.textContent = "...";
+        el.kpiSessionsToday.textContent = "...";
+        el.kpiGa4Sessions7d.textContent = "...";
+        el.kpiBestCampaign.textContent = "...";
+        el.kpiBestCpl.textContent = "...";
+        el.kpiWorstCampaign.textContent = "...";
+      }
+
+      function setGa4Badge(state, text) {
+        el.ga4Badge.className = "ga4-badge";
+        if (state === "ok") el.ga4Badge.classList.add("ok");
+        if (state === "warn") el.ga4Badge.classList.add("warn");
+        if (state === "err") el.ga4Badge.classList.add("err");
+        el.ga4Badge.textContent = text;
+      }
+
+      function setStatus(state, details = "") {
+        if (state === "loading") {
+          el.statusDot.style.background = "#7f93b8";
+          el.statusText.textContent = "Checking connection...";
+          return;
+        }
+        if (state === "connected") {
+          el.statusDot.style.background = "#36c26b";
+          el.statusText.textContent = details || "Live Connected";
+          return;
+        }
+        if (state === "auth") {
+          el.statusDot.style.background = "#ffb020";
+          el.statusText.textContent = details || "Auth Error: Check x-api-key";
+          return;
+        }
+        if (state === "backend") {
+          el.statusDot.style.background = "#ff5f56";
+          el.statusText.textContent = details || "Backend Down: Check URL/server";
+          return;
+        }
+        if (state === "data") {
+          el.statusDot.style.background = "#ff8a3d";
+          el.statusText.textContent = details || "Data error: check API credentials";
+          return;
+        }
+        el.statusDot.style.background = "#6d7f9f";
+        el.statusText.textContent = details || "Status unknown";
+      }
+
+      async function checkLiveStatus() {
+        setStatus("loading");
+        let healthRes;
+        try {
+          healthRes = await fetch(resolveUrl("/health"), { method: "GET" });
+        } catch {
+          setStatus("backend", "Backend Down: cannot reach server");
+          return false;
+        }
+        if (!healthRes.ok) {
+          setStatus("backend", `Backend issue: /health HTTP ${healthRes.status}`);
+          return false;
         }
 
-        add("assistant", "Thinking...");
-        const r = await postJson("/api/chat", { message: q });
-        // Remove the "Thinking..." message
-        chat.removeChild(chat.lastChild);
+        const authCheck = await postJson("/api/tools/run", { tool: "get_meta_spend_today", args: {} });
+        if (!authCheck.ok && authCheck.status === 401) {
+          setStatus("auth", "Auth Error: invalid x-api-key");
+          return false;
+        }
+        if (!authCheck.ok && authCheck.status === 0) {
+          setStatus("backend", "Backend Down: network error");
+          return false;
+        }
+        if (!authCheck.ok) {
+          const msg =
+            authCheck.json?.primary_error ||
+            authCheck.json?.error ||
+            authCheck.raw ||
+            "Live data failed";
+          setStatus("data", `Live data error: ${String(msg).slice(0, 120)}`);
+          return false;
+        }
+        setStatus("connected", "Live Connected");
+        return true;
+      }
 
-        if (!r.ok) {
-          if (r.status === 401) return add("assistant", "Error 401 Unauthorized. Enter correct x-api-key.");
-          if (r.status === 404) return add("assistant", "Error 404. Check backend URL and route.");
-          add("assistant", "Error: " + (r.json?.error || r.raw));
+      async function fetchLiveKpis() {
+        const hasKey = getApiKey();
+        if (!hasKey) {
+          setStatus("auth", "Auth Error: x-api-key missing");
+          setGa4Badge("err", "GA4: api-key missing");
           return;
         }
 
-        const answer = r.json?.answer ?? JSON.stringify(r.json, null, 2);
-        add("assistant", answer);
+        setKpiLoading();
+        setGa4Badge("warn", "GA4: checking...");
+        const ok = await checkLiveStatus();
+        if (!ok) {
+          setGa4Badge("err", "GA4: backend/auth issue");
+          return;
+        }
+
+        const [leads, leads30d, leads7d, spendToday, spendMonth, spend7d, users, sessionsToday, sessions7d, bestCampaign, ga4Debug] = await Promise.all([
+          postJson("/api/tools/run", { tool: "get_meta_leads_today", args: {} }),
+          postJson("/api/tools/run", { tool: "get_meta_leads_last_30d", args: {} }),
+          postJson("/api/tools/run", { tool: "get_meta_leads_last_7d", args: {} }),
+          postJson("/api/tools/run", { tool: "get_meta_spend_today", args: {} }),
+          postJson("/api/tools/run", { tool: "get_meta_spend_month", args: {} }),
+          postJson("/api/tools/run", { tool: "get_meta_spend_last_7d", args: {} }),
+          postJson("/api/tools/run", { tool: "get_ga4_active_users_today", args: {} }),
+          postJson("/api/tools/run", { tool: "get_ga4_sessions_today", args: {} }),
+          postJson("/api/tools/run", { tool: "get_ga4_sessions_last_7_days", args: {} }),
+          postJson("/api/tools/run", { tool: "get_meta_best_campaign", args: {} }),
+          getJson("/api/ga4/debug-tag"),
+        ]);
+
+        if (leads.ok) el.kpiLeads.textContent = String(leads.json?.leads ?? "-");
+        else el.kpiLeads.textContent = "-";
+
+        if (leads30d.ok) el.kpiLeads30d.textContent = String(leads30d.json?.leads ?? "-");
+        else el.kpiLeads30d.textContent = "-";
+        if (leads7d.ok) el.kpiLeads7d.textContent = String(leads7d.json?.leads ?? "-");
+        else el.kpiLeads7d.textContent = "-";
+
+        if (spendToday.ok) el.kpiSpendToday.textContent = formatCurrencyINR(spendToday.json?.spend);
+        else el.kpiSpendToday.textContent = "-";
+
+        if (spendMonth.ok) el.kpiSpendMonth.textContent = formatCurrencyINR(spendMonth.json?.spend);
+        else el.kpiSpendMonth.textContent = "-";
+        if (spend7d.ok) el.kpiSpend7d.textContent = formatCurrencyINR(spend7d.json?.spend);
+        else el.kpiSpend7d.textContent = "-";
+
+        if (users.ok) el.kpiUsers.textContent = String(users.json?.active_users ?? "-");
+        else el.kpiUsers.textContent = "-";
+
+        if (sessionsToday.ok) el.kpiSessionsToday.textContent = String(sessionsToday.json?.sessions ?? "-");
+        else el.kpiSessionsToday.textContent = "-";
+        if (sessions7d.ok) el.kpiGa4Sessions7d.textContent = String(sessions7d.json?.sessions ?? "-");
+        else el.kpiGa4Sessions7d.textContent = "-";
+
+        if (bestCampaign.ok) {
+          const best = bestCampaign.json?.best || null;
+          const top = Array.isArray(bestCampaign.json?.top) ? bestCampaign.json.top : [];
+          const worst = top.length ? top[top.length - 1] : null;
+
+          el.kpiBestCampaign.textContent = best?.campaign_name || "-";
+          el.kpiBestCpl.textContent = Number.isFinite(Number(best?.cpl))
+            ? formatCurrencyINR(best.cpl)
+            : "-";
+          el.kpiWorstCampaign.textContent = worst?.campaign_name || "-";
+        } else {
+          el.kpiBestCampaign.textContent = "-";
+          el.kpiBestCpl.textContent = "-";
+          el.kpiWorstCampaign.textContent = "-";
+        }
+
+        if (!ga4Debug.ok) {
+          setGa4Badge("err", "GA4: config/access error");
+        } else {
+          const m = ga4Debug.json?.metrics || {};
+          const active = Number(m.realtime_active_users || 0);
+          const today = Number(m.today_sessions || 0);
+          const last7 = Number(m.last_7_days_sessions || 0);
+          if (active > 0 || today > 0 || last7 > 0) {
+            setGa4Badge("ok", "GA4: live data detected");
+          } else {
+            setGa4Badge("warn", "GA4: connected, no traffic yet");
+          }
+        }
       }
 
-      sendBtn.onclick = send;
-      msg.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") send();
-      });
+      function upsertMessage(role, text) {
+        const c = getCurrentConversation();
+        if (!c) return;
+        c.messages.push({ id: uid(), role, text, ts: nowIso() });
+        c.updatedAt = nowIso();
+        c.title = buildTitle(c.messages);
+        conversations.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+        persist();
+      }
 
-      add("system", "UI loaded. Save backend URL and x-api-key, then ask your question.");
+      function renderMessage(msg) {
+        const w = document.createElement("div");
+        w.className = "msg " + msg.role;
+        const avatar = document.createElement("div");
+        avatar.className = "avatar";
+        avatar.textContent = msg.role === "user" ? "U" : "AI";
+        const content = document.createElement("div");
+        content.className = "content";
+        const meta = document.createElement("div");
+        meta.className = "meta";
+        meta.innerHTML = `<span>${msg.role}</span><span class="ts">${fmtTime(msg.ts || nowIso())}</span>`;
+        const bubble = document.createElement("div");
+        bubble.className = "bubble";
+        const isEditing = msg.role === "user" && editingMessageId === msg.id;
+        if (isEditing) {
+          bubble.innerHTML = `
+            <div class="edit-box">
+              <textarea class="edit-input" id="edit-input-${msg.id}">${escapeHtml(msg.text)}</textarea>
+              <div class="actions">
+                <button class="icon" id="edit-save-${msg.id}">Save & Resend</button>
+                <button class="icon ghost" id="edit-cancel-${msg.id}">Cancel</button>
+              </div>
+            </div>
+          `;
+        } else {
+          bubble.innerHTML = renderMarkdown(msg.text);
+        }
+        content.appendChild(meta);
+        content.appendChild(bubble);
+
+        if (msg.role === "assistant") {
+          const actions = document.createElement("div");
+          actions.className = "actions";
+          const copyBtn = document.createElement("button");
+          copyBtn.className = "icon";
+          copyBtn.textContent = "Copy";
+          copyBtn.onclick = async () => {
+            try {
+              await navigator.clipboard.writeText(msg.text);
+              copyBtn.textContent = "Copied";
+              setTimeout(() => (copyBtn.textContent = "Copy"), 900);
+            } catch {}
+          };
+          actions.appendChild(copyBtn);
+          content.appendChild(actions);
+        }
+        if (msg.role === "user" && !isEditing) {
+          const actions = document.createElement("div");
+          actions.className = "actions";
+          const editBtn = document.createElement("button");
+          editBtn.className = "icon ghost";
+          editBtn.textContent = "Edit";
+          editBtn.onclick = () => startEditMessage(msg.id);
+          actions.appendChild(editBtn);
+          content.appendChild(actions);
+        }
+
+        w.appendChild(avatar);
+        w.appendChild(content);
+
+        if (isEditing) {
+          setTimeout(() => {
+            const input = document.getElementById(`edit-input-${msg.id}`);
+            const saveBtn = document.getElementById(`edit-save-${msg.id}`);
+            const cancelBtn = document.getElementById(`edit-cancel-${msg.id}`);
+            if (input) {
+              input.focus();
+              input.selectionStart = input.value.length;
+              input.selectionEnd = input.value.length;
+              input.addEventListener("keydown", (e) => {
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  cancelEditMessage();
+                }
+                if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+                  e.preventDefault();
+                  saveEditedMessage(msg.id, input.value);
+                }
+              });
+            }
+            if (saveBtn) saveBtn.onclick = () => saveEditedMessage(msg.id, input ? input.value : "");
+            if (cancelBtn) cancelBtn.onclick = cancelEditMessage;
+          }, 0);
+        }
+
+        return w;
+      }
+
+      function startEditMessage(messageId) {
+        editingMessageId = messageId;
+        renderCurrentConversation();
+      }
+
+      function cancelEditMessage() {
+        editingMessageId = null;
+        renderCurrentConversation();
+      }
+
+      async function saveEditedMessage(messageId, nextText) {
+        const c = getCurrentConversation();
+        if (!c) return;
+        const text = (nextText || "").trim();
+        if (!text) return;
+
+        const idx = c.messages.findIndex((m) => m.id === messageId && m.role === "user");
+        if (idx < 0) return;
+
+        c.messages[idx].text = text;
+        c.messages[idx].ts = nowIso();
+        c.messages = c.messages.slice(0, idx + 1);
+        c.updatedAt = nowIso();
+        c.title = buildTitle(c.messages);
+        editingMessageId = null;
+        persist();
+        renderConversationList();
+        renderCurrentConversation();
+        await askAssistant(text, false);
+      }
+
+      function renderCurrentConversation() {
+        const c = getCurrentConversation();
+        el.chat.innerHTML = "";
+        if (!c || !c.messages.length) {
+          const d = document.createElement("div");
+          d.className = "empty";
+          d.innerHTML = `
+            <div class="title">Welcome to your AI marketing desk</div>
+            <div class="subtle">Ask in natural language and get concise answers like ChatGPT.</div>`;
+          el.chat.appendChild(d);
+          updateScrollTopVisibility();
+          return;
+        }
+        c.messages.forEach((m) => el.chat.appendChild(renderMessage(m)));
+        el.chat.scrollTop = el.chat.scrollHeight;
+        updateScrollTopVisibility();
+      }
+
+      function addTyping() {
+        const w = document.createElement("div");
+        w.className = "msg assistant";
+        w.innerHTML = `
+          <div class="avatar">AI</div>
+          <div class="content">
+            <div class="meta"><span>assistant</span><span class="ts">typing</span></div>
+            <div class="bubble"><span class="typing"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span></div>
+          </div>`;
+        el.chat.appendChild(w);
+        el.chat.scrollTop = el.chat.scrollHeight;
+        return w;
+      }
+
+      async function askAssistant(question, appendUser = true) {
+        const q = question.trim();
+        if (!q) return;
+        ensureConversation();
+        if (appendUser) upsertMessage("user", q);
+        renderConversationList();
+        renderCurrentConversation();
+
+        el.send.disabled = true;
+        el.regen.disabled = true;
+        const typing = addTyping();
+        const r = await postJson("/api/chat", { message: q });
+        typing.remove();
+
+        let answer = "";
+        if (!r.ok) {
+          if (r.status === 401) answer = "Unauthorized. Please check your x-api-key.";
+          else if (r.status === 404) answer = "Endpoint not found. Check backend URL.";
+          else answer = r.json?.error || r.raw || "Unknown error.";
+        } else {
+          answer = r.json?.answer || "Done.";
+        }
+        upsertMessage("assistant", answer);
+        parseKpisFromText(answer);
+        renderConversationList();
+        renderCurrentConversation();
+        el.send.disabled = false;
+        el.regen.disabled = false;
+        updateScrollTopVisibility();
+      }
+
+      function scrollChatToTop() {
+        if (el.chat) el.chat.scrollTo({ top: 0, behavior: "smooth" });
+      }
+
+      function updateScrollTopVisibility() {
+        const chatScrolled = (el.chat?.scrollTop || 0) > 220;
+        if (chatScrolled) el.scrollTopBtn.classList.add("show");
+        else el.scrollTopBtn.classList.remove("show");
+      }
+
+      async function sendCurrent() {
+        const q = el.msg.value;
+        el.msg.value = "";
+        await askAssistant(q, true);
+      }
+
+      async function regenerate() {
+        const c = getCurrentConversation();
+        if (!c) return;
+        const prompt = getLastUserPrompt(c);
+        if (!prompt) return;
+        while (c.messages.length && c.messages[c.messages.length - 1].role === "assistant") c.messages.pop();
+        c.updatedAt = nowIso();
+        persist();
+        renderCurrentConversation();
+        await askAssistant(prompt, false);
+      }
+
+      function clearConversation() {
+        const c = getCurrentConversation();
+        if (!c) return;
+        c.messages = [];
+        c.title = "New chat";
+        c.updatedAt = nowIso();
+        persist();
+        renderConversationList();
+        renderCurrentConversation();
+      }
+      function renameConversation() {
+        const c = getCurrentConversation();
+        if (!c) return;
+        const name = prompt("Rename chat", c.title);
+        if (!name || !name.trim()) return;
+        c.title = name.trim();
+        c.updatedAt = nowIso();
+        persist();
+        renderConversationList();
+      }
+      function deleteConversation() {
+        if (!conversations.length) return;
+        const c = getCurrentConversation();
+        if (!c) return;
+        conversations = conversations.filter((x) => x.id !== c.id);
+        if (!conversations.length) createConversation();
+        else currentConversationId = conversations[0].id;
+        persist();
+        renderConversationList();
+        renderCurrentConversation();
+      }
+      function exportConversation() {
+        const c = getCurrentConversation();
+        if (!c) return;
+        const payload = { exported_at: nowIso(), title: c.title, messages: c.messages };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `chat-${c.id}.json`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }
+      function saveConfig() {
+        localStorage.setItem("backend-url", el.backendUrl.value.trim());
+        localStorage.setItem("x-api-key", el.apiKey.value.trim());
+        localStorage.setItem("meta-account-id", (el.metaAccount.value || "").trim());
+        upsertMessage("assistant", "Configuration updated successfully.");
+        renderCurrentConversation();
+        renderConversationList();
+        fetchLiveKpis();
+      }
+      async function verifyMetaTokenNow() {
+        const resp = await getJson("/api/meta/verify-token");
+        if (!resp.ok) {
+          const msg = resp.json?.error || resp.raw || "Meta verification failed";
+          setStatus("data", `Meta verify failed: ${String(msg).slice(0, 120)}`);
+          upsertMessage(
+            "assistant",
+            `Meta verification failed: ${msg}\n\nPlease refresh META_ACCESS_TOKEN and restart backend.`
+          );
+          renderCurrentConversation();
+          renderConversationList();
+          return;
+        }
+        const j = resp.json || {};
+        setStatus("connected", "Meta token verified");
+        const lines = [
+          "Meta verification successful.",
+          `- Account: ${j.account_id || "-"}`,
+          `- User: ${j.app_scoped_user?.name || "-"} (${j.app_scoped_user?.id || "-"})`,
+          `- Today's sample spend: ${j.sample_spend_today ?? "-"}`,
+          `- Currency: ${j.currency || "-"}`,
+        ];
+        upsertMessage("assistant", lines.join("\n"));
+        renderCurrentConversation();
+        renderConversationList();
+      }
+      async function verifyGa4Now() {
+        const resp = await getJson("/api/ga4/debug-tag");
+        if (!resp.ok) {
+          const msg = resp.json?.error || resp.raw || "GA4 debug failed";
+          const diag = resp.json?.diagnosis || "GA4 verification failed";
+          const actions = Array.isArray(resp.json?.next_actions) ? resp.json.next_actions : [];
+          setStatus("data", `GA4 verify failed: ${String(msg).slice(0, 120)}`);
+          const lines = [`GA4 debug failed: ${msg}`, "", `Reason: ${diag}`];
+          if (actions.length) {
+            lines.push("", "Next actions:");
+            actions.forEach((a, i) => lines.push(`${i + 1}. ${a}`));
+          }
+          upsertMessage(
+            "assistant",
+            lines.join("\n")
+          );
+          renderCurrentConversation();
+          renderConversationList();
+          return;
+        }
+        const j = resp.json || {};
+        const metrics = j.metrics || {};
+        const actions = Array.isArray(j.next_actions) ? j.next_actions : [];
+        const lines = [
+          "GA4 debug report:",
+          `- Property: ${j.property || "-"}`,
+          `- Realtime active users: ${metrics.realtime_active_users ?? "-"}`,
+          `- Today sessions: ${metrics.today_sessions ?? "-"}`,
+          `- Last 7 days sessions: ${metrics.last_7_days_sessions ?? "-"}`,
+          `- Last 30 days sessions: ${metrics.last_30_days_sessions ?? "-"}`,
+          `- Diagnosis: ${j.diagnosis || "-"}`,
+        ];
+        if (actions.length) {
+          lines.push("", "Next actions:");
+          actions.forEach((a, i) => lines.push(`${i + 1}. ${a}`));
+        }
+        upsertMessage("assistant", lines.join("\n"));
+        renderCurrentConversation();
+        renderConversationList();
+      }
+      function renderChips() {
+        el.chips.innerHTML = "";
+        SUGGESTIONS.forEach((q) => {
+          const b = document.createElement("button");
+          b.className = "chip";
+          b.textContent = q;
+          b.onclick = () => {
+            el.msg.value = q;
+            sendCurrent();
+          };
+          el.chips.appendChild(b);
+        });
+      }
+
+      el.send.onclick = sendCurrent;
+      el.msg.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") sendCurrent();
+      });
+      el.regen.onclick = regenerate;
+      el.clear.onclick = clearConversation;
+      el.newChat.onclick = () => createConversation();
+      el.newFolder.onclick = createFolder;
+      el.renameFolder.onclick = renameActiveFolder;
+      el.deleteFolder.onclick = deleteActiveFolder;
+      el.rename.onclick = renameConversation;
+      el.del.onclick = deleteConversation;
+      el.saveCfg.onclick = saveConfig;
+      el.verifyMeta.onclick = verifyMetaTokenNow;
+      el.verifyGa4.onclick = verifyGa4Now;
+      el.metaAccount.onchange = () => {
+        localStorage.setItem("meta-account-id", (el.metaAccount.value || "").trim());
+        fetchLiveKpis();
+      };
+      el.export.onclick = exportConversation;
+      el.search.oninput = renderConversationList;
+      document.addEventListener("click", () => {
+        if (openConvMenuId !== null) {
+          openConvMenuId = null;
+          renderConversationList();
+        }
+      });
+      document.addEventListener("keydown", (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+          e.preventDefault();
+          el.msg.focus();
+        }
+      });
+      el.scrollTopBtn.onclick = scrollChatToTop;
+      el.chat.addEventListener("scroll", updateScrollTopVisibility);
+
+      load();
+      loadMetaAccounts();
+      renderChips();
+      renderFolderList();
+      renderConversationList();
+      renderCurrentConversation();
+      fetchLiveKpis();
+      updateScrollTopVisibility();
+      setInterval(() => {
+        if (!document.hidden) fetchLiveKpis();
+      }, 60000);
     </script>
   </body>
 </html>

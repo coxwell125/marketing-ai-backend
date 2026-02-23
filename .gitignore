@@ -2,3 +2,4 @@ node_modules
 dist
 .env
 ga4-service-account.json
+GA4_CREDENTIALS_JSON.txt
