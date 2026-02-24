@@ -137,6 +137,8 @@ export async function debugGa4Tag(): Promise<{
   const enabled = isGa4Enabled();
   const propertyId = process.env.GA4_PROPERTY_ID || "";
   const property = propertyId ? `properties/${propertyId}` : "properties/<missing>";
+  const credentialsJsonRaw = String(process.env.GA4_CREDENTIALS_JSON || "").trim();
+  const hasCredentialsJson = Boolean(credentialsJsonRaw);
   const credentialsPath = process.env.GA4_CREDENTIALS_PATH
     ? getCredentialsPath()
     : null;
@@ -167,16 +169,19 @@ export async function debugGa4Tag(): Promise<{
     };
   }
 
-  if (!credentialsPath) {
+  if (!hasCredentialsJson && !credentialsPath) {
     return {
       ok: false,
       property,
       timezone,
       as_of_ist: asOf,
       config: { enabled, credentials_path: credentialsPath },
-      diagnosis: "GA4 credentials path is missing.",
-      next_actions: ["Set GA4_CREDENTIALS_PATH in .env and restart backend."],
-      error: "GA4_CREDENTIALS_PATH not set",
+      diagnosis: "GA4 credentials are missing.",
+      next_actions: [
+        "Set GA4_CREDENTIALS_JSON with full service account JSON (recommended for Vercel), or",
+        "Set GA4_CREDENTIALS_PATH to a valid key file path and restart backend.",
+      ],
+      error: "GA4_CREDENTIALS_JSON/GA4_CREDENTIALS_PATH not set",
     };
   }
 
