@@ -533,6 +533,15 @@ function formatToolAnswer(tool: string, result: any): string {
     )} saves.`;
   }
 
+  if (tool === "get_instagram_account_overview") {
+    const account = result?.account || {};
+    return `Instagram account ${String(account.username || "").trim() || "(unknown)"} has ${formatNumber(
+      Number(account.followers_count ?? 0)
+    )} followers, follows ${formatNumber(Number(account.follows_count ?? 0))} accounts, and has ${formatNumber(
+      Number(account.media_count ?? 0)
+    )} media posts.`;
+  }
+
   if (result.ok === false && result.error) {
     const detail = result.primary_error ? ` (${String(result.primary_error)})` : "";
     return `I couldn't complete that request: ${String(result.error)}${detail}`;
@@ -853,7 +862,9 @@ function defaultToolBundleForMessage(message: string): string[] {
     tools.add("get_ga4_sessions_today");
   }
   if (/instagram|insta|reel|reels/.test(m)) {
-    tools.add("get_instagram_reels_today");
+    if (/follower|followers|follow|follows|follw/.test(m)) tools.add("get_instagram_account_overview");
+    if (/best|top|better|perform/.test(m)) tools.add("get_instagram_best_reel");
+    else tools.add("get_instagram_reels_today");
   }
   if (/campaign|performance|best|worst|poor|underperform/.test(m)) {
     tools.add("get_meta_best_campaign");
@@ -1023,6 +1034,8 @@ function inferToolFromText(text: string): string | null {
   if (m.includes("ga4") && m.includes("sessions")) return "get_ga4_sessions_today";
   if (m.includes("ga4") && (m.includes("top pages") || m.includes("top page"))) return "get_ga4_top_pages_today";
   if (m.includes("instagram") || m.includes("insta") || m.includes("reel") || m.includes("reels")) {
+    if (/(follower|followers|follow|follows|follw)/.test(m)) return "get_instagram_account_overview";
+    if (/(best|top|better|perform)/.test(m)) return "get_instagram_best_reel";
     if (m.includes("best")) return "get_instagram_best_reel";
     if (m.includes("month") || m.includes("monthly")) return "get_instagram_reels_month";
     return "get_instagram_reels_today";
@@ -1161,6 +1174,8 @@ function mapMessageToTool(message: string): string | null {
 
   // Instagram Reels
   if (m.includes("instagram") || m.includes("insta") || m.includes("reel") || m.includes("reels")) {
+    if (/(follower|followers|follow|follows|follw)/.test(m)) return "get_instagram_account_overview";
+    if (/(best|top|better|perform)/.test(m)) return "get_instagram_best_reel";
     if (m.includes("best")) return "get_instagram_best_reel";
     if (m.includes("month") || m.includes("monthly") || m.includes("this month")) return "get_instagram_reels_month";
     return "get_instagram_reels_today";

@@ -679,6 +679,21 @@ export type InstagramBestReelResult = {
   top: IgReelRow[];
 };
 
+export type InstagramAccountOverviewResult = {
+  ok: true;
+  tool: "get_instagram_account_overview";
+  timezone: "Asia/Kolkata";
+  as_of_ist: string;
+  account: {
+    ig_business_account_id: string;
+    username: string;
+    name: string;
+    followers_count: number;
+    follows_count: number;
+    media_count: number;
+  };
+};
+
 export async function getInstagramReelsToday(accountId?: string): Promise<InstagramReelsTodayResult> {
   const { since, until } = todayDatePresetForIST();
   const reels = await fetchIgReelsForRange(accountId, since, until);
@@ -711,6 +726,33 @@ export async function getInstagramReelsMonth(accountId?: string): Promise<Instag
     total_reach: reels.reduce((s, r) => s + r.reach, 0),
     total_saved: reels.reduce((s, r) => s + r.saved, 0),
     top: reels.slice(0, 10),
+  };
+}
+
+export async function getInstagramAccountOverview(accountId?: string): Promise<InstagramAccountOverviewResult> {
+  const env = getMetaEnv(accountId);
+  const igId = getInstagramBusinessAccountId();
+  const fields = ["id", "username", "name", "followers_count", "follows_count", "media_count"].join(",");
+  const params = encodeParams({
+    access_token: env.META_ACCESS_TOKEN,
+    fields,
+  });
+  const url = `https://graph.facebook.com/${env.META_API_VERSION}/${igId}?${params}`;
+  const data = await metaFetchJson(url);
+
+  return {
+    ok: true,
+    tool: "get_instagram_account_overview",
+    timezone: "Asia/Kolkata",
+    as_of_ist: istNowIso(),
+    account: {
+      ig_business_account_id: String(data?.id || igId),
+      username: String(data?.username || ""),
+      name: String(data?.name || ""),
+      followers_count: parseNumberLoose(data?.followers_count),
+      follows_count: parseNumberLoose(data?.follows_count),
+      media_count: parseNumberLoose(data?.media_count),
+    },
   };
 }
 

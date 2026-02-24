@@ -12,6 +12,7 @@ import {
   getInstagramReelsToday,
   getInstagramReelsMonth,
   getInstagramBestReel,
+  getInstagramAccountOverview,
 } from "./metaApi";
 
 import {
@@ -273,6 +274,24 @@ function makeLocalMock(toolName: string, args: AnyJson = {}, reason = "Fallback 
     };
   }
 
+  if (toolName === "get_instagram_account_overview") {
+    return {
+      ok: true,
+      tool: toolName,
+      timezone: "Asia/Kolkata",
+      as_of_ist: asOf,
+      account: {
+        ig_business_account_id: String(process.env.IG_BUSINESS_ACCOUNT_ID || "17840000000000000"),
+        username: "sample_instagram",
+        name: "Sample Instagram",
+        followers_count: stableNumber(`${toolName}|followers|${today}`, 1000, 250000),
+        follows_count: stableNumber(`${toolName}|follows|${today}`, 100, 5000),
+        media_count: stableNumber(`${toolName}|media|${today}`, 20, 900),
+      },
+      _mock: { used: true, reason },
+    };
+  }
+
   if (toolName === "get_ga4_active_users_today") {
     return {
       ok: true,
@@ -513,6 +532,19 @@ export const toolDefs: ToolDef[] = [
     handler: async (args) =>
       callToolWithFallback("get_meta_best_campaign", args || {}, () =>
         getMetaBestCampaign(args?.account_id, args?.period || "today")
+      ),
+  },
+  {
+    name: "get_instagram_account_overview",
+    description: "Returns Instagram account overview (followers, following, media count).",
+    inputSchema: {
+      type: "object",
+      properties: { account_id: { type: "string" } },
+      additionalProperties: false,
+    },
+    handler: async (args) =>
+      callToolWithFallback("get_instagram_account_overview", args || {}, () =>
+        getInstagramAccountOverview(args?.account_id)
       ),
   },
   {

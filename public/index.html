@@ -644,6 +644,8 @@
           <div class="kpi"><div class="name">Meta Leads (Last 7D)</div><div id="kpiLeads7d" class="value">-</div></div>
           <div class="kpi"><div class="name">Meta Spend (Last 7D)</div><div id="kpiSpend7d" class="value">-</div></div>
           <div class="kpi"><div class="name">GA4 Sessions (Last 7D)</div><div id="kpiGa4Sessions7d" class="value">-</div></div>
+          <div class="kpi"><div class="name">IG Followers</div><div id="kpiIgFollowers" class="value">-</div></div>
+          <div class="kpi"><div class="name">Best Reel (Month)</div><div id="kpiIgBestReel" class="value">-</div></div>
         </div>
         <div class="statusbar">
           <div id="statusDot" class="status-dot"></div>
@@ -729,6 +731,8 @@
         kpiBestCampaign: document.getElementById("kpiBestCampaign"),
         kpiBestCpl: document.getElementById("kpiBestCpl"),
         kpiWorstCampaign: document.getElementById("kpiWorstCampaign"),
+        kpiIgFollowers: document.getElementById("kpiIgFollowers"),
+        kpiIgBestReel: document.getElementById("kpiIgBestReel"),
         statusDot: document.getElementById("statusDot"),
         statusText: document.getElementById("statusText"),
         ga4Badge: document.getElementById("ga4Badge"),
@@ -1251,6 +1255,8 @@
         el.kpiBestCampaign.textContent = "...";
         el.kpiBestCpl.textContent = "...";
         el.kpiWorstCampaign.textContent = "...";
+        el.kpiIgFollowers.textContent = "...";
+        el.kpiIgBestReel.textContent = "...";
       }
 
       function setGa4Badge(state, text) {
@@ -1343,7 +1349,21 @@
           return;
         }
 
-        const [leads, leads30d, leads7d, spendToday, spendMonth, spend7d, users, sessionsToday, sessions7d, bestCampaign, ga4Debug] = await Promise.all([
+        const [
+          leads,
+          leads30d,
+          leads7d,
+          spendToday,
+          spendMonth,
+          spend7d,
+          users,
+          sessionsToday,
+          sessions7d,
+          bestCampaign,
+          igOverview,
+          igBestReel,
+          ga4Debug,
+        ] = await Promise.all([
           postJson("/api/tools/run", { tool: "get_meta_leads_today", args: {} }),
           postJson("/api/tools/run", { tool: "get_meta_leads_last_30d", args: {} }),
           postJson("/api/tools/run", { tool: "get_meta_leads_last_7d", args: {} }),
@@ -1354,6 +1374,8 @@
           postJson("/api/tools/run", { tool: "get_ga4_sessions_today", args: {} }),
           postJson("/api/tools/run", { tool: "get_ga4_sessions_last_7_days", args: {} }),
           postJson("/api/tools/run", { tool: "get_meta_best_campaign", args: {} }),
+          postJson("/api/tools/run", { tool: "get_instagram_account_overview", args: {} }),
+          postJson("/api/tools/run", { tool: "get_instagram_best_reel", args: { period: "this_month" } }),
           getJson("/api/ga4/debug-tag"),
         ]);
 
@@ -1395,6 +1417,23 @@
           el.kpiBestCampaign.textContent = "-";
           el.kpiBestCpl.textContent = "-";
           el.kpiWorstCampaign.textContent = "-";
+        }
+
+        if (igOverview.ok) {
+          el.kpiIgFollowers.textContent = String(igOverview.json?.account?.followers_count ?? "-");
+        } else {
+          el.kpiIgFollowers.textContent = "-";
+        }
+
+        if (igBestReel.ok) {
+          const bestCaption = String(igBestReel.json?.best?.caption || "").trim();
+          const bestPlays = Number(igBestReel.json?.best?.plays ?? NaN);
+          const name = bestCaption ? bestCaption.slice(0, 24) : "No reel";
+          el.kpiIgBestReel.textContent = Number.isFinite(bestPlays)
+            ? `${name} (${bestPlays})`
+            : name;
+        } else {
+          el.kpiIgBestReel.textContent = "-";
         }
 
         if (!ga4Debug.ok) {
