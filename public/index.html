@@ -35,6 +35,12 @@
         grid-template-columns: 300px 1fr;
         min-height: 100vh;
       }
+      .sidebar-backdrop {
+        display: none;
+      }
+      .mobile-nav {
+        display: none;
+      }
       .sidebar {
         border-right: 1px solid var(--line-soft);
         padding: 14px;
@@ -42,6 +48,9 @@
         display: flex;
         flex-direction: column;
         gap: 10px;
+      }
+      .menu-btn {
+        display: none;
       }
       .main {
         display: flex;
@@ -60,6 +69,12 @@
       .brand {
         display: flex;
         flex-direction: column;
+      }
+      .topbar-left {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
       }
       .title {
         font-weight: 700;
@@ -699,12 +714,46 @@
           grid-template-columns: 1fr;
           min-height: 100dvh;
         }
+        body.sidebar-open {
+          overflow: hidden;
+        }
+        .sidebar-backdrop {
+          display: block;
+          position: fixed;
+          inset: 0;
+          background: rgba(3, 8, 16, 0.62);
+          backdrop-filter: blur(2px);
+          opacity: 0;
+          pointer-events: none;
+          transition: opacity 0.18s ease;
+          z-index: 39;
+          border: 0;
+          padding: 0;
+          margin: 0;
+        }
+        body.sidebar-open .sidebar-backdrop {
+          opacity: 1;
+          pointer-events: auto;
+        }
         .sidebar {
-          border-right: 0;
-          border-bottom: 1px solid var(--line-soft);
-          max-height: none;
+          position: fixed;
+          left: 0;
+          top: 0;
+          bottom: 0;
+          width: min(86vw, 360px);
           padding: 12px;
           gap: 8px;
+          max-height: 100dvh;
+          overflow: auto;
+          border-right: 1px solid var(--line-soft);
+          border-bottom: 0;
+          z-index: 40;
+          box-shadow: 18px 0 40px rgba(0, 0, 0, 0.45);
+          transform: translateX(-105%);
+          transition: transform 0.2s ease;
+        }
+        body.sidebar-open .sidebar {
+          transform: translateX(0);
         }
         .sidebar .row {
           flex-wrap: wrap;
@@ -714,32 +763,74 @@
           min-width: 120px;
         }
         .topbar {
-          flex-direction: column;
-          align-items: flex-start;
+          position: sticky;
+          top: 0;
+          z-index: 20;
+          background: rgba(15, 24, 43, 0.93);
+          backdrop-filter: blur(8px);
+          flex-direction: row;
+          flex-wrap: wrap;
+          align-items: center;
+          justify-content: space-between;
           padding: 10px 12px;
+        }
+        .topbar-left {
+          width: 100%;
+        }
+        .menu-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 40px;
+          height: 40px;
+          border-radius: 12px;
+          font-size: 18px;
+          padding: 0;
+          flex: 0 0 40px;
+        }
+        .brand {
+          min-width: 0;
+        }
+        .brand .subtle {
+          font-size: 11px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
         .topbar .row {
           width: 100%;
-          flex-wrap: nowrap;
-          overflow-x: auto;
-          padding-bottom: 2px;
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 6px;
+        }
+        .topbar .row > * {
+          width: 100%;
+          min-width: 0;
+          text-align: center;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
         .kpi-tabs-wrap {
           padding: 10px 12px;
         }
         .kpi-toolbar {
-          flex-direction: column;
-          align-items: flex-start;
+          flex-direction: row;
+          justify-content: space-between;
+          align-items: center;
+          flex-wrap: wrap;
         }
         .kpi-tabs {
-          display: flex;
-          grid-template-columns: none;
+          display: grid;
+          grid-auto-flow: column;
+          grid-auto-columns: minmax(170px, 1fr);
           overflow-x: auto;
           gap: 8px;
-          padding-bottom: 2px;
+          padding-bottom: 4px;
+          scroll-snap-type: x mandatory;
         }
         .kpi-tab {
-          flex: 0 0 auto;
+          scroll-snap-align: start;
           white-space: nowrap;
         }
         .kpi-panel,
@@ -754,13 +845,26 @@
           display: none;
         }
         .chat-wrap {
-          padding: 10px;
+          padding: 8px;
+          gap: 8px;
+          padding-bottom: 76px;
         }
         .chat {
           padding: 10px;
+          border-radius: 12px;
         }
         .content {
           max-width: 100%;
+        }
+        .msg .content {
+          max-width: calc(100% - 38px);
+        }
+        .composer {
+          position: sticky;
+          bottom: 0;
+          border-radius: 12px;
+          background: rgba(16, 26, 47, 0.95);
+          backdrop-filter: blur(6px);
         }
         .composer .row {
           flex-wrap: nowrap;
@@ -773,9 +877,50 @@
           flex: 0 0 auto;
           white-space: nowrap;
         }
+        .chips {
+          flex-wrap: nowrap;
+          overflow-x: auto;
+          padding-bottom: 2px;
+          margin-top: 6px;
+        }
+        .chip {
+          flex: 0 0 auto;
+          white-space: nowrap;
+        }
         .scroll-top-btn {
           right: 14px;
-          bottom: 96px;
+          bottom: 148px;
+        }
+        .mobile-nav {
+          position: fixed;
+          left: 10px;
+          right: 10px;
+          bottom: 10px;
+          z-index: 45;
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 8px;
+          padding: 8px;
+          border: 1px solid #2b4167;
+          border-radius: 14px;
+          background: rgba(10, 20, 37, 0.9);
+          backdrop-filter: blur(8px);
+          box-shadow: 0 14px 34px rgba(0, 0, 0, 0.4);
+        }
+        .mobile-nav button {
+          border-radius: 10px;
+          padding: 10px 8px;
+          font-size: 12px;
+          text-align: center;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          background: #0f1a30;
+          border-color: #29436d;
+        }
+        .mobile-nav button.active {
+          background: linear-gradient(180deg, #20406f, #1a3053);
+          border-color: #6f9de0;
         }
       }
       @media (max-width: 560px) {
@@ -783,11 +928,23 @@
           grid-template-columns: 1fr;
         }
         .sidebar {
-          max-height: 55dvh;
-          overflow: auto;
+          width: min(92vw, 360px);
         }
         .sidebar .row > * {
           flex: 1 1 100%;
+        }
+        .topbar {
+          padding: 10px;
+        }
+        .topbar .row {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .topbar .row > * {
+          font-size: 12px;
+          padding: 9px 8px;
+        }
+        .muted-pill {
+          text-align: center;
         }
         .kpi-panel,
         .kpi-panel.active {
@@ -802,8 +959,22 @@
         .msg {
           gap: 8px;
         }
+        .avatar {
+          width: 24px;
+          height: 24px;
+          flex: 0 0 24px;
+          font-size: 10px;
+        }
         .bubble {
           padding: 9px 10px;
+        }
+        .chat {
+          padding: 8px;
+        }
+        .mobile-nav {
+          left: 8px;
+          right: 8px;
+          bottom: 8px;
         }
         .edit-box {
           width: 100%;
@@ -848,14 +1019,23 @@
           </div>
         </div>
       </aside>
+      <button
+        id="sidebarBackdrop"
+        class="sidebar-backdrop"
+        aria-label="Close sidebar"
+        title="Close sidebar"
+      ></button>
 
       <main class="main">
         <div class="topbar">
-          <div class="brand">
-            <div class="title">Marketing AI Assistant</div>
-            <div class="subtle">Premium local copilot for Meta and GA4 insights</div>
+          <div class="topbar-left">
+            <button id="toggleSidebar" class="ghost menu-btn" aria-label="Open sidebar" title="Menu">Menu</button>
+            <div class="brand">
+              <div class="title">Marketing AI Assistant</div>
+              <div class="subtle">Premium local copilot for Meta and GA4 insights</div>
+            </div>
           </div>
-          <div class="row">
+          <div class="row top-actions">
             <span id="lastUpdated" class="muted-pill">Updated: --</span>
             <button id="refreshKpi" class="ghost">Refresh</button>
             <button id="toggleCompact" class="ghost">Compact</button>
@@ -865,7 +1045,7 @@
           </div>
         </div>
 
-        <div class="kpi-tabs-wrap">
+        <div id="kpiSection" class="kpi-tabs-wrap">
           <div class="kpi-toolbar">
             <div class="left">
               <span class="muted-pill">Brand Dashboard</span>
@@ -946,7 +1126,7 @@
           <span id="alertText">No alerts</span>
         </div>
 
-        <div class="chat-wrap">
+        <div id="chatSection" class="chat-wrap">
           <div id="chat" class="chat"></div>
           <div class="composer">
             <div class="row">
@@ -959,7 +1139,12 @@
         </div>
       </main>
     </div>
-    <button id="scrollTopBtn" class="scroll-top-btn" title="Back to top">↑</button>
+    <nav id="mobileNav" class="mobile-nav" aria-label="Mobile navigation">
+      <button id="navKpi" type="button" class="active">KPIs</button>
+      <button id="navChat" type="button">Chat</button>
+      <button id="navSettings" type="button">Settings</button>
+    </nav>
+    <button id="scrollTopBtn" class="scroll-top-btn" title="Back to top">Top</button>
 
     <script>
       const STORAGE_KEY = "mai-conversations-v4";
@@ -1068,11 +1253,49 @@
         statusText: document.getElementById("statusText"),
         ga4Badge: document.getElementById("ga4Badge"),
         scrollTopBtn: document.getElementById("scrollTopBtn"),
+        toggleSidebar: document.getElementById("toggleSidebar"),
+        sidebarBackdrop: document.getElementById("sidebarBackdrop"),
+        main: document.querySelector(".main"),
+        navKpi: document.getElementById("navKpi"),
+        navChat: document.getElementById("navChat"),
+        navSettings: document.getElementById("navSettings"),
+        kpiSection: document.getElementById("kpiSection"),
+        chatSection: document.getElementById("chatSection"),
       };
 
       el.backendUrl.value = localStorage.getItem("backend-url") || window.location.origin;
       el.apiKey.value = localStorage.getItem("x-api-key") || "";
       el.metaAccount.value = localStorage.getItem("meta-account-id") || "";
+
+      function isMobileViewport() {
+        return window.matchMedia("(max-width: 900px)").matches;
+      }
+
+      function setSidebarOpen(open) {
+        document.body.classList.toggle("sidebar-open", !!open);
+      }
+
+      function closeSidebarOnMobile() {
+        if (isMobileViewport()) setSidebarOpen(false);
+      }
+
+      function setMobileNavActive(key) {
+        const pairs = [
+          ["kpi", el.navKpi],
+          ["chat", el.navChat],
+          ["settings", el.navSettings],
+        ];
+        for (const [k, btn] of pairs) {
+          if (!btn) continue;
+          if (k === key) btn.classList.add("active");
+          else btn.classList.remove("active");
+        }
+      }
+
+      function scrollToSection(target) {
+        if (!target) return;
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
 
       let conversations = [];
       let folders = [];
@@ -2333,6 +2556,7 @@
         renderConversationList();
         loadMetaAccounts();
         fetchLiveKpis();
+        closeSidebarOnMobile();
       }
       async function verifyMetaTokenNow() {
         const resp = await getJson("/api/meta/verify-token");
@@ -2461,6 +2685,60 @@
         localStorage.setItem("mai-compact", compactMode ? "1" : "0");
         applyCompactMode();
       };
+      if (el.navKpi) {
+        el.navKpi.onclick = () => {
+          setMobileNavActive("kpi");
+          scrollToSection(el.kpiSection);
+        };
+      }
+      if (el.navChat) {
+        el.navChat.onclick = () => {
+          setMobileNavActive("chat");
+          scrollToSection(el.chatSection);
+          setTimeout(() => el.msg?.focus(), 220);
+        };
+      }
+      if (el.navSettings) {
+        el.navSettings.onclick = () => {
+          setMobileNavActive("settings");
+          if (isMobileViewport()) setSidebarOpen(true);
+          else scrollToSection(document.body);
+        };
+      }
+      if (el.toggleSidebar) {
+        el.toggleSidebar.onclick = (e) => {
+          e.stopPropagation();
+          const nextOpen = !document.body.classList.contains("sidebar-open");
+          setSidebarOpen(nextOpen);
+          if (isMobileViewport()) setMobileNavActive(nextOpen ? "settings" : "kpi");
+        };
+      }
+      if (el.sidebarBackdrop) {
+        el.sidebarBackdrop.onclick = () => {
+          setSidebarOpen(false);
+          setMobileNavActive("kpi");
+        };
+      }
+      if (el.main) {
+        el.main.addEventListener("click", () => {
+          closeSidebarOnMobile();
+          if (isMobileViewport()) setMobileNavActive("chat");
+        });
+      }
+      window.addEventListener("scroll", () => {
+        if (!isMobileViewport()) return;
+        const chatTop = el.chatSection?.getBoundingClientRect().top ?? 9999;
+        const kpiTop = el.kpiSection?.getBoundingClientRect().top ?? 9999;
+        if (document.body.classList.contains("sidebar-open")) {
+          setMobileNavActive("settings");
+          return;
+        }
+        if (Math.abs(chatTop) < Math.abs(kpiTop)) setMobileNavActive("chat");
+        else setMobileNavActive("kpi");
+      });
+      window.addEventListener("resize", () => {
+        if (!isMobileViewport()) setSidebarOpen(false);
+      });
 
       load();
       loadMetaAccounts();
@@ -2470,6 +2748,7 @@
       renderFolderList();
       renderConversationList();
       renderCurrentConversation();
+      setMobileNavActive("kpi");
       fetchLiveKpis();
       updateScrollTopVisibility();
       setInterval(() => {
