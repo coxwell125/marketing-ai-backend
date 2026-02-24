@@ -676,26 +676,38 @@
 
           <div id="panelCoxwellMeta" class="kpi-panel active">
             <div class="kpi"><div class="name">Spend (Today)</div><div id="tabCwMetaSpendToday" class="value">-</div></div>
+            <div class="kpi"><div class="name">Spend (Last 7D)</div><div id="tabCwMetaSpend7d" class="value">-</div></div>
             <div class="kpi"><div class="name">Leads (Today)</div><div id="tabCwMetaLeadsToday" class="value">-</div></div>
+            <div class="kpi"><div class="name">Leads (Last 7D)</div><div id="tabCwMetaLeads7d" class="value">-</div></div>
             <div class="kpi"><div class="name">Best Campaign</div><div id="tabCwMetaBestCampaign" class="value">-</div></div>
+            <div class="kpi"><div class="name">Best Campaign CPL</div><div id="tabCwMetaBestCpl" class="value">-</div></div>
           </div>
 
           <div id="panelCoxwellIg" class="kpi-panel">
             <div class="kpi"><div class="name">Followers</div><div id="tabCwIgFollowers" class="value">-</div></div>
-            <div class="kpi"><div class="name">Reels (Overall)</div><div id="tabCwIgReelsCount" class="value">-</div></div>
-            <div class="kpi"><div class="name">Best Reel</div><div id="tabCwIgBestReel" class="value">-</div></div>
+            <div class="kpi"><div class="name">Following</div><div id="tabCwIgFollowing" class="value">-</div></div>
+            <div class="kpi"><div class="name">Media Count</div><div id="tabCwIgMediaCount" class="value">-</div></div>
+            <div class="kpi"><div class="name">Best Reel Plays</div><div id="tabCwIgBestPlays" class="value">-</div></div>
+            <div class="kpi"><div class="name">Best Reel Reach</div><div id="tabCwIgBestReach" class="value">-</div></div>
+            <div class="kpi"><div class="name">Best Reel Saves</div><div id="tabCwIgBestSaves" class="value">-</div></div>
           </div>
 
           <div id="panelAltisMeta" class="kpi-panel">
             <div class="kpi"><div class="name">Spend (Today)</div><div id="tabAltisMetaSpendToday" class="value">-</div></div>
+            <div class="kpi"><div class="name">Spend (Last 7D)</div><div id="tabAltisMetaSpend7d" class="value">-</div></div>
             <div class="kpi"><div class="name">Leads (Today)</div><div id="tabAltisMetaLeadsToday" class="value">-</div></div>
+            <div class="kpi"><div class="name">Leads (Last 7D)</div><div id="tabAltisMetaLeads7d" class="value">-</div></div>
             <div class="kpi"><div class="name">Best Campaign</div><div id="tabAltisMetaBestCampaign" class="value">-</div></div>
+            <div class="kpi"><div class="name">Best Campaign CPL</div><div id="tabAltisMetaBestCpl" class="value">-</div></div>
           </div>
 
           <div id="panelAltisIg" class="kpi-panel">
             <div class="kpi"><div class="name">Followers</div><div id="tabAltisIgFollowers" class="value">-</div></div>
-            <div class="kpi"><div class="name">Reels (Overall)</div><div id="tabAltisIgReelsCount" class="value">-</div></div>
-            <div class="kpi"><div class="name">Best Reel</div><div id="tabAltisIgBestReel" class="value">-</div></div>
+            <div class="kpi"><div class="name">Following</div><div id="tabAltisIgFollowing" class="value">-</div></div>
+            <div class="kpi"><div class="name">Media Count</div><div id="tabAltisIgMediaCount" class="value">-</div></div>
+            <div class="kpi"><div class="name">Best Reel Plays</div><div id="tabAltisIgBestPlays" class="value">-</div></div>
+            <div class="kpi"><div class="name">Best Reel Reach</div><div id="tabAltisIgBestReach" class="value">-</div></div>
+            <div class="kpi"><div class="name">Best Reel Saves</div><div id="tabAltisIgBestSaves" class="value">-</div></div>
           </div>
         </div>
 
@@ -810,17 +822,29 @@
         panelAltisMeta: document.getElementById("panelAltisMeta"),
         panelAltisIg: document.getElementById("panelAltisIg"),
         tabCwMetaSpendToday: document.getElementById("tabCwMetaSpendToday"),
+        tabCwMetaSpend7d: document.getElementById("tabCwMetaSpend7d"),
         tabCwMetaLeadsToday: document.getElementById("tabCwMetaLeadsToday"),
+        tabCwMetaLeads7d: document.getElementById("tabCwMetaLeads7d"),
         tabCwMetaBestCampaign: document.getElementById("tabCwMetaBestCampaign"),
+        tabCwMetaBestCpl: document.getElementById("tabCwMetaBestCpl"),
         tabCwIgFollowers: document.getElementById("tabCwIgFollowers"),
-        tabCwIgReelsCount: document.getElementById("tabCwIgReelsCount"),
-        tabCwIgBestReel: document.getElementById("tabCwIgBestReel"),
+        tabCwIgFollowing: document.getElementById("tabCwIgFollowing"),
+        tabCwIgMediaCount: document.getElementById("tabCwIgMediaCount"),
+        tabCwIgBestPlays: document.getElementById("tabCwIgBestPlays"),
+        tabCwIgBestReach: document.getElementById("tabCwIgBestReach"),
+        tabCwIgBestSaves: document.getElementById("tabCwIgBestSaves"),
         tabAltisMetaSpendToday: document.getElementById("tabAltisMetaSpendToday"),
+        tabAltisMetaSpend7d: document.getElementById("tabAltisMetaSpend7d"),
         tabAltisMetaLeadsToday: document.getElementById("tabAltisMetaLeadsToday"),
+        tabAltisMetaLeads7d: document.getElementById("tabAltisMetaLeads7d"),
         tabAltisMetaBestCampaign: document.getElementById("tabAltisMetaBestCampaign"),
+        tabAltisMetaBestCpl: document.getElementById("tabAltisMetaBestCpl"),
         tabAltisIgFollowers: document.getElementById("tabAltisIgFollowers"),
-        tabAltisIgReelsCount: document.getElementById("tabAltisIgReelsCount"),
-        tabAltisIgBestReel: document.getElementById("tabAltisIgBestReel"),
+        tabAltisIgFollowing: document.getElementById("tabAltisIgFollowing"),
+        tabAltisIgMediaCount: document.getElementById("tabAltisIgMediaCount"),
+        tabAltisIgBestPlays: document.getElementById("tabAltisIgBestPlays"),
+        tabAltisIgBestReach: document.getElementById("tabAltisIgBestReach"),
+        tabAltisIgBestSaves: document.getElementById("tabAltisIgBestSaves"),
         statusDot: document.getElementById("statusDot"),
         statusText: document.getElementById("statusText"),
         ga4Badge: document.getElementById("ga4Badge"),
@@ -1378,17 +1402,29 @@
         el.kpiIgFollowers.textContent = "...";
         el.kpiIgBestReel.textContent = "...";
         el.tabCwMetaSpendToday.textContent = "...";
+        el.tabCwMetaSpend7d.textContent = "...";
         el.tabCwMetaLeadsToday.textContent = "...";
+        el.tabCwMetaLeads7d.textContent = "...";
         el.tabCwMetaBestCampaign.textContent = "...";
+        el.tabCwMetaBestCpl.textContent = "...";
         el.tabCwIgFollowers.textContent = "...";
-        el.tabCwIgReelsCount.textContent = "...";
-        el.tabCwIgBestReel.textContent = "...";
+        el.tabCwIgFollowing.textContent = "...";
+        el.tabCwIgMediaCount.textContent = "...";
+        el.tabCwIgBestPlays.textContent = "...";
+        el.tabCwIgBestReach.textContent = "...";
+        el.tabCwIgBestSaves.textContent = "...";
         el.tabAltisMetaSpendToday.textContent = "...";
+        el.tabAltisMetaSpend7d.textContent = "...";
         el.tabAltisMetaLeadsToday.textContent = "...";
+        el.tabAltisMetaLeads7d.textContent = "...";
         el.tabAltisMetaBestCampaign.textContent = "...";
+        el.tabAltisMetaBestCpl.textContent = "...";
         el.tabAltisIgFollowers.textContent = "...";
-        el.tabAltisIgReelsCount.textContent = "...";
-        el.tabAltisIgBestReel.textContent = "...";
+        el.tabAltisIgFollowing.textContent = "...";
+        el.tabAltisIgMediaCount.textContent = "...";
+        el.tabAltisIgBestPlays.textContent = "...";
+        el.tabAltisIgBestReach.textContent = "...";
+        el.tabAltisIgBestSaves.textContent = "...";
       }
 
       function setGa4Badge(state, text) {
@@ -1497,12 +1533,16 @@
           igOverview,
           igBestReel,
           coxwellMetaSpendToday,
+          coxwellMetaSpend7d,
           coxwellMetaLeadsToday,
+          coxwellMetaLeads7d,
           coxwellMetaBestCampaign,
           coxwellIgOverview,
           coxwellIgBestReel,
           altisMetaSpendToday,
+          altisMetaSpend7d,
           altisMetaLeadsToday,
+          altisMetaLeads7d,
           altisMetaBestCampaign,
           altisIgOverview,
           altisIgBestReel,
@@ -1521,12 +1561,16 @@
           postJson("/api/tools/run", { tool: "get_instagram_account_overview", args: {} }),
           postJson("/api/tools/run", { tool: "get_instagram_best_reel", args: { period: "maximum" } }),
           postJson("/api/tools/run", { tool: "get_meta_spend_today", args: { account_id: brandAccounts.coxwell } }),
+          postJson("/api/tools/run", { tool: "get_meta_spend_last_7d", args: { account_id: brandAccounts.coxwell } }),
           postJson("/api/tools/run", { tool: "get_meta_leads_today", args: { account_id: brandAccounts.coxwell } }),
+          postJson("/api/tools/run", { tool: "get_meta_leads_last_7d", args: { account_id: brandAccounts.coxwell } }),
           postJson("/api/tools/run", { tool: "get_meta_best_campaign", args: { account_id: brandAccounts.coxwell } }),
           postJson("/api/tools/run", { tool: "get_instagram_account_overview", args: { account_id: brandAccounts.coxwell } }),
           postJson("/api/tools/run", { tool: "get_instagram_best_reel", args: { account_id: brandAccounts.coxwell, period: "maximum" } }),
           postJson("/api/tools/run", { tool: "get_meta_spend_today", args: { account_id: brandAccounts.altis } }),
+          postJson("/api/tools/run", { tool: "get_meta_spend_last_7d", args: { account_id: brandAccounts.altis } }),
           postJson("/api/tools/run", { tool: "get_meta_leads_today", args: { account_id: brandAccounts.altis } }),
+          postJson("/api/tools/run", { tool: "get_meta_leads_last_7d", args: { account_id: brandAccounts.altis } }),
           postJson("/api/tools/run", { tool: "get_meta_best_campaign", args: { account_id: brandAccounts.altis } }),
           postJson("/api/tools/run", { tool: "get_instagram_account_overview", args: { account_id: brandAccounts.altis } }),
           postJson("/api/tools/run", { tool: "get_instagram_best_reel", args: { account_id: brandAccounts.altis, period: "maximum" } }),
@@ -1593,39 +1637,75 @@
         el.tabCwMetaSpendToday.textContent = coxwellMetaSpendToday.ok
           ? formatCurrencyINR(coxwellMetaSpendToday.json?.spend)
           : "-";
+        el.tabCwMetaSpend7d.textContent = coxwellMetaSpend7d.ok
+          ? formatCurrencyINR(coxwellMetaSpend7d.json?.spend)
+          : "-";
         el.tabCwMetaLeadsToday.textContent = coxwellMetaLeadsToday.ok
           ? String(coxwellMetaLeadsToday.json?.leads ?? "-")
+          : "-";
+        el.tabCwMetaLeads7d.textContent = coxwellMetaLeads7d.ok
+          ? String(coxwellMetaLeads7d.json?.leads ?? "-")
           : "-";
         el.tabCwMetaBestCampaign.textContent = coxwellMetaBestCampaign.ok
           ? String(coxwellMetaBestCampaign.json?.best?.campaign_name || "No campaign")
           : "-";
+        el.tabCwMetaBestCpl.textContent = coxwellMetaBestCampaign.ok
+          ? formatCurrencyINR(coxwellMetaBestCampaign.json?.best?.cpl)
+          : "-";
         el.tabCwIgFollowers.textContent = coxwellIgOverview.ok
           ? String(coxwellIgOverview.json?.account?.followers_count ?? "-")
           : "-";
-        el.tabCwIgReelsCount.textContent = coxwellIgBestReel.ok
-          ? String(Array.isArray(coxwellIgBestReel.json?.top) ? coxwellIgBestReel.json.top.length : 0)
+        el.tabCwIgFollowing.textContent = coxwellIgOverview.ok
+          ? String(coxwellIgOverview.json?.account?.follows_count ?? "-")
           : "-";
-        el.tabCwIgBestReel.textContent = coxwellIgBestReel.ok
-          ? String((coxwellIgBestReel.json?.best?.caption || "No reel")).slice(0, 26)
+        el.tabCwIgMediaCount.textContent = coxwellIgOverview.ok
+          ? String(coxwellIgOverview.json?.account?.media_count ?? "-")
+          : "-";
+        el.tabCwIgBestPlays.textContent = coxwellIgBestReel.ok
+          ? String(Number(coxwellIgBestReel.json?.best?.plays ?? 0))
+          : "-";
+        el.tabCwIgBestReach.textContent = coxwellIgBestReel.ok
+          ? String(Number(coxwellIgBestReel.json?.best?.reach ?? 0))
+          : "-";
+        el.tabCwIgBestSaves.textContent = coxwellIgBestReel.ok
+          ? String(Number(coxwellIgBestReel.json?.best?.saved ?? 0))
           : "-";
 
         el.tabAltisMetaSpendToday.textContent = altisMetaSpendToday.ok
           ? formatCurrencyINR(altisMetaSpendToday.json?.spend)
           : "-";
+        el.tabAltisMetaSpend7d.textContent = altisMetaSpend7d.ok
+          ? formatCurrencyINR(altisMetaSpend7d.json?.spend)
+          : "-";
         el.tabAltisMetaLeadsToday.textContent = altisMetaLeadsToday.ok
           ? String(altisMetaLeadsToday.json?.leads ?? "-")
+          : "-";
+        el.tabAltisMetaLeads7d.textContent = altisMetaLeads7d.ok
+          ? String(altisMetaLeads7d.json?.leads ?? "-")
           : "-";
         el.tabAltisMetaBestCampaign.textContent = altisMetaBestCampaign.ok
           ? String(altisMetaBestCampaign.json?.best?.campaign_name || "No campaign")
           : "-";
+        el.tabAltisMetaBestCpl.textContent = altisMetaBestCampaign.ok
+          ? formatCurrencyINR(altisMetaBestCampaign.json?.best?.cpl)
+          : "-";
         el.tabAltisIgFollowers.textContent = altisIgOverview.ok
           ? String(altisIgOverview.json?.account?.followers_count ?? "-")
           : "-";
-        el.tabAltisIgReelsCount.textContent = altisIgBestReel.ok
-          ? String(Array.isArray(altisIgBestReel.json?.top) ? altisIgBestReel.json.top.length : 0)
+        el.tabAltisIgFollowing.textContent = altisIgOverview.ok
+          ? String(altisIgOverview.json?.account?.follows_count ?? "-")
           : "-";
-        el.tabAltisIgBestReel.textContent = altisIgBestReel.ok
-          ? String((altisIgBestReel.json?.best?.caption || "No reel")).slice(0, 26)
+        el.tabAltisIgMediaCount.textContent = altisIgOverview.ok
+          ? String(altisIgOverview.json?.account?.media_count ?? "-")
+          : "-";
+        el.tabAltisIgBestPlays.textContent = altisIgBestReel.ok
+          ? String(Number(altisIgBestReel.json?.best?.plays ?? 0))
+          : "-";
+        el.tabAltisIgBestReach.textContent = altisIgBestReel.ok
+          ? String(Number(altisIgBestReel.json?.best?.reach ?? 0))
+          : "-";
+        el.tabAltisIgBestSaves.textContent = altisIgBestReel.ok
+          ? String(Number(altisIgBestReel.json?.best?.saved ?? 0))
           : "-";
 
         if (!ga4Debug.ok) {
