@@ -847,21 +847,21 @@
       }
 
       function getBackendBase() {
-        const fromStorage = (localStorage.getItem("backend-url") || "").trim();
         const fromInput = (el.backendUrl?.value || "").trim();
-        return (fromStorage || fromInput || window.location.origin).replace(/\/+$/, "");
+        const fromStorage = (localStorage.getItem("backend-url") || "").trim();
+        return (fromInput || fromStorage || window.location.origin).replace(/\/+$/, "");
       }
 
       function getApiKey() {
-        const fromStorage = (localStorage.getItem("x-api-key") || "").trim();
         const fromInput = (el.apiKey?.value || "").trim();
-        return fromStorage || fromInput;
+        const fromStorage = (localStorage.getItem("x-api-key") || "").trim();
+        return fromInput || fromStorage;
       }
 
       function getMetaAccountId() {
-        const fromStorage = (localStorage.getItem("meta-account-id") || "").trim();
         const fromInput = (el.metaAccount?.value || "").trim();
-        return fromStorage || fromInput;
+        const fromStorage = (localStorage.getItem("meta-account-id") || "").trim();
+        return fromInput || fromStorage;
       }
 
       function resolveUrl(path) {
@@ -1681,6 +1681,7 @@
         upsertMessage("assistant", "Configuration updated successfully.");
         renderCurrentConversation();
         renderConversationList();
+        loadMetaAccounts();
         fetchLiveKpis();
       }
       async function verifyMetaTokenNow() {
