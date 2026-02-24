@@ -10,6 +10,13 @@ const MetaEnvSchema = z.object({
 
 type MetaEnv = z.infer<typeof MetaEnvSchema>;
 
+const InstagramEnvSchema = z.object({
+  IG_ACCESS_TOKEN: z.string().min(1),
+  META_API_VERSION: z.string().min(1).default("v20.0"),
+});
+
+type InstagramEnv = z.infer<typeof InstagramEnvSchema>;
+
 function getMetaEnv(accountId?: string): MetaEnv {
   const resolvedAccount = resolveMetaAccountId(accountId);
   const parsed = MetaEnvSchema.safeParse({
@@ -21,6 +28,20 @@ function getMetaEnv(accountId?: string): MetaEnv {
   if (!parsed.success) {
     const issues = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
     throw new Error(`Meta env invalid: ${issues}`);
+  }
+  return parsed.data;
+}
+
+function getInstagramEnv(): InstagramEnv {
+  const parsed = InstagramEnvSchema.safeParse({
+    // Prefer dedicated IG token; fallback to META token for backward compatibility.
+    IG_ACCESS_TOKEN: process.env.IG_ACCESS_TOKEN || process.env.META_ACCESS_TOKEN,
+    META_API_VERSION: process.env.META_API_VERSION ?? "v20.0",
+  });
+
+  if (!parsed.success) {
+    const issues = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
+    throw new Error(`Instagram env invalid: ${issues}`);
   }
   return parsed.data;
 }
@@ -201,13 +222,13 @@ type IgReelRow = {
   shares: number;
 };
 
-async function fetchIgMediaBaseRows(env: MetaEnv): Promise<
+async function fetchIgMediaBaseRows(env: InstagramEnv): Promise<
   Array<{ id: string; caption: string; permalink: string; media_type: string; timestamp: string }>
 > {
   const igId = getInstagramBusinessAccountId();
   const fields = ["id", "caption", "permalink", "media_type", "timestamp"].join(",");
   const params = encodeParams({
-    access_token: env.META_ACCESS_TOKEN,
+    access_token: env.IG_ACCESS_TOKEN,
     fields,
     limit: 100,
   });
@@ -225,7 +246,7 @@ async function fetchIgMediaBaseRows(env: MetaEnv): Promise<
     .filter((r: any) => r.id && r.media_type === "REEL");
 }
 
-async function fetchIgReelInsights(env: MetaEnv, mediaId: string): Promise<{
+async function fetchIgReelInsights(env: InstagramEnv, mediaId: string): Promise<{
   plays: number;
   reach: number;
   saved: number;
@@ -236,7 +257,7 @@ async function fetchIgReelInsights(env: MetaEnv, mediaId: string): Promise<{
   // Metric availability varies by account/version; request broad set and parse what is returned.
   const metrics = "plays,reach,saved,likes,comments,shares,total_interactions";
   const params = encodeParams({
-    access_token: env.META_ACCESS_TOKEN,
+    access_token: env.IG_ACCESS_TOKEN,
     metric: metrics,
   });
   const url = `https://graph.facebook.com/${env.META_API_VERSION}/${mediaId}/insights?${params}`;
@@ -271,7 +292,8 @@ async function fetchIgReelsForRange(
   sinceYmd: string,
   untilYmd: string
 ): Promise<IgReelRow[]> {
-  const env = getMetaEnv(accountId);
+  void accountId;
+  const env = getInstagramEnv();
   const baseRows = await fetchIgMediaBaseRows(env);
 
   const filtered = baseRows.filter((r) => {
@@ -730,11 +752,12 @@ export async function getInstagramReelsMonth(accountId?: string): Promise<Instag
 }
 
 export async function getInstagramAccountOverview(accountId?: string): Promise<InstagramAccountOverviewResult> {
-  const env = getMetaEnv(accountId);
+  void accountId;
+  const env = getInstagramEnv();
   const igId = getInstagramBusinessAccountId();
   const fields = ["id", "username", "name", "followers_count", "follows_count", "media_count"].join(",");
   const params = encodeParams({
-    access_token: env.META_ACCESS_TOKEN,
+    access_token: env.IG_ACCESS_TOKEN,
     fields,
   });
   const url = `https://graph.facebook.com/${env.META_API_VERSION}/${igId}?${params}`;
