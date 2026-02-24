@@ -15,10 +15,43 @@ import { debugGa4Tag, verifyGa4Setup } from "./services/ga4Api";
 
 const app = express();
 
+function parseCsvEnv(value: string | undefined): string[] {
+  if (!value) return [];
+  return value
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
+function normalizeIp(ip: string): string {
+  const v = String(ip || "").trim();
+  if (!v) return "";
+  return v.replace(/^::ffff:/, "");
+}
+
+function isIpAllowed(ip: string, allowlist: string[]): boolean {
+  if (!allowlist.length) return true;
+  const candidate = normalizeIp(ip);
+  return allowlist.some((allowedRaw) => {
+    const allowed = normalizeIp(allowedRaw);
+    return !!allowed && allowed === candidate;
+  });
+}
+
 const corsOrigin = process.env.CORS_ORIGIN?.trim();
+const requireOriginMatch = String(process.env.REQUIRE_ORIGIN_MATCH || "false").toLowerCase() === "true";
+const allowedIps = parseCsvEnv(process.env.ALLOWED_IPS);
+const disablePublicUi = String(process.env.DISABLE_PUBLIC_UI || "false").toLowerCase() === "true";
+
+if (String(process.env.TRUST_PROXY || "true").toLowerCase() !== "false") {
+  app.set("trust proxy", true);
+}
+
 app.use(cors(corsOrigin ? { origin: corsOrigin } : undefined));
 app.use(express.json({ limit: "1mb" }));
-app.use(express.static("public"));
+if (!disablePublicUi) {
+  app.use(express.static("public"));
+}
 app.disable("x-powered-by");
 
 // basic security headers
@@ -28,6 +61,25 @@ app.use((_req, res, next) => {
   res.setHeader("Referrer-Policy", "no-referrer");
   res.setHeader("Permissions-Policy", "geolocation=(), microphone=(), camera=()");
   next();
+});
+
+// Optional network hardening for production deployments.
+app.use((req: Request, res: Response, next: NextFunction) => {
+  if (allowedIps.length) {
+    const ip = req.ip || req.socket.remoteAddress || "";
+    if (!isIpAllowed(ip, allowedIps)) {
+      return res.status(403).json({ ok: false, error: "Forbidden" });
+    }
+  }
+
+  if (requireOriginMatch && corsOrigin) {
+    const origin = String(req.header("origin") || "").trim();
+    if (!origin || origin !== corsOrigin) {
+      return res.status(403).json({ ok: false, error: "Origin not allowed" });
+    }
+  }
+
+  return next();
 });
 
 // request id (useful for logs)
@@ -83,6 +135,7 @@ app.get("/health", (_req, res) => {
 });
 
 app.get("/ui", (_req, res) => {
+  if (disablePublicUi) return res.status(404).json({ ok: false, error: "Not Found" });
   res.sendFile(require("path").join(process.cwd(), "public", "index.html"));
 });
 
@@ -134,6 +187,18 @@ const port = Number(process.env.PORT || 8080);
 
 export function startServer() {
   return app.listen(port, () => {
+    if (process.env.NODE_ENV === "production") {
+      const k = String(process.env.INTERNAL_API_KEY || "");
+      if (k === "cw-ai-prod") {
+        console.warn("Security warning: INTERNAL_API_KEY uses a weak default-like value.");
+      }
+      if (!process.env.CORS_ORIGIN) {
+        console.warn("Security warning: CORS_ORIGIN is not set in production.");
+      }
+      if (!allowedIps.length) {
+        console.warn("Security warning: ALLOWED_IPS is not set; service is publicly reachable.");
+      }
+    }
     console.log("Auth keys mode:", process.env.API_KEYS_JSON ? "API_KEYS_JSON" : "INTERNAL_API_KEY");
     console.log(`Backend running on port ${port}`);
   });

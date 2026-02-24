@@ -697,19 +697,113 @@
       @media (max-width: 900px) {
         .app {
           grid-template-columns: 1fr;
+          min-height: 100dvh;
         }
         .sidebar {
           border-right: 0;
           border-bottom: 1px solid var(--line-soft);
-          max-height: 320px;
+          max-height: none;
+          padding: 12px;
+          gap: 8px;
+        }
+        .sidebar .row {
+          flex-wrap: wrap;
+        }
+        .sidebar .row > * {
+          flex: 1 1 calc(50% - 4px);
+          min-width: 120px;
+        }
+        .topbar {
+          flex-direction: column;
+          align-items: flex-start;
+          padding: 10px 12px;
+        }
+        .topbar .row {
+          width: 100%;
+          flex-wrap: nowrap;
+          overflow-x: auto;
+          padding-bottom: 2px;
+        }
+        .kpi-tabs-wrap {
+          padding: 10px 12px;
+        }
+        .kpi-toolbar {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+        .kpi-tabs {
+          display: flex;
+          grid-template-columns: none;
+          overflow-x: auto;
+          gap: 8px;
+          padding-bottom: 2px;
+        }
+        .kpi-tab {
+          flex: 0 0 auto;
+          white-space: nowrap;
+        }
+        .kpi-panel,
+        .kpi-panel.active {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .statusbar {
+          flex-wrap: wrap;
+          row-gap: 6px;
+        }
+        .status-spacer {
+          display: none;
+        }
+        .chat-wrap {
+          padding: 10px;
+        }
+        .chat {
+          padding: 10px;
         }
         .content {
-          max-width: 90%;
+          max-width: 100%;
+        }
+        .composer .row {
+          flex-wrap: nowrap;
+        }
+        .composer .row input {
+          min-width: 0;
+          flex: 1 1 auto;
+        }
+        .composer .row button {
+          flex: 0 0 auto;
+          white-space: nowrap;
+        }
+        .scroll-top-btn {
+          right: 14px;
+          bottom: 96px;
         }
       }
       @media (max-width: 560px) {
         .kpis {
           grid-template-columns: 1fr;
+        }
+        .sidebar {
+          max-height: 55dvh;
+          overflow: auto;
+        }
+        .sidebar .row > * {
+          flex: 1 1 100%;
+        }
+        .kpi-panel,
+        .kpi-panel.active {
+          grid-template-columns: 1fr;
+        }
+        .composer .row {
+          flex-direction: column;
+        }
+        .composer .row button {
+          width: 100%;
+        }
+        .msg {
+          gap: 8px;
+        }
+        .bubble {
+          padding: 9px 10px;
         }
         .edit-box {
           width: 100%;
@@ -741,7 +835,7 @@
           <div class="subtle">Backend URL</div>
           <input id="backendUrl" placeholder="http://localhost:8080" />
           <div class="subtle">x-api-key</div>
-          <input id="apiKey" placeholder="cw-ai-prod" />
+          <input id="apiKey" placeholder="Enter your x-api-key" />
           <div class="subtle">Meta Account</div>
           <select id="metaAccount">
             <option value="">Default account</option>
