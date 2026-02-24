@@ -242,6 +242,41 @@
         border-bottom: 1px solid var(--line-soft);
         background: #0f1729;
       }
+      .legacy-kpis {
+        display: none;
+      }
+      .kpi-tabs-wrap {
+        border-bottom: 1px solid var(--line-soft);
+        background: #0f1729;
+        padding: 10px 14px;
+      }
+      .kpi-tabs {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .kpi-tab {
+        border: 1px solid #2f456c;
+        border-radius: 999px;
+        background: #0f1a2f;
+        color: #d8e5ff;
+        padding: 8px 10px;
+        font-size: 12px;
+        text-align: center;
+      }
+      .kpi-tab.active {
+        border-color: #6f9de0;
+        background: #1a315a;
+      }
+      .kpi-panel {
+        margin-top: 10px;
+        display: none;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .kpi-panel.active {
+        display: grid;
+      }
       .statusbar {
         display: flex;
         align-items: center;
@@ -631,7 +666,40 @@
           </div>
         </div>
 
-        <div class="kpis">
+        <div class="kpi-tabs-wrap">
+          <div class="kpi-tabs">
+            <button id="tabCoxwellMeta" class="kpi-tab active">Coxwell Meta Ads</button>
+            <button id="tabCoxwellIg" class="kpi-tab">Coxwell Instagram</button>
+            <button id="tabAltisMeta" class="kpi-tab">Altis Meta Ads</button>
+            <button id="tabAltisIg" class="kpi-tab">Altis Instagram</button>
+          </div>
+
+          <div id="panelCoxwellMeta" class="kpi-panel active">
+            <div class="kpi"><div class="name">Spend (Today)</div><div id="tabCwMetaSpendToday" class="value">-</div></div>
+            <div class="kpi"><div class="name">Leads (Today)</div><div id="tabCwMetaLeadsToday" class="value">-</div></div>
+            <div class="kpi"><div class="name">Best Campaign</div><div id="tabCwMetaBestCampaign" class="value">-</div></div>
+          </div>
+
+          <div id="panelCoxwellIg" class="kpi-panel">
+            <div class="kpi"><div class="name">Followers</div><div id="tabCwIgFollowers" class="value">-</div></div>
+            <div class="kpi"><div class="name">Reels (Overall)</div><div id="tabCwIgReelsCount" class="value">-</div></div>
+            <div class="kpi"><div class="name">Best Reel</div><div id="tabCwIgBestReel" class="value">-</div></div>
+          </div>
+
+          <div id="panelAltisMeta" class="kpi-panel">
+            <div class="kpi"><div class="name">Spend (Today)</div><div id="tabAltisMetaSpendToday" class="value">-</div></div>
+            <div class="kpi"><div class="name">Leads (Today)</div><div id="tabAltisMetaLeadsToday" class="value">-</div></div>
+            <div class="kpi"><div class="name">Best Campaign</div><div id="tabAltisMetaBestCampaign" class="value">-</div></div>
+          </div>
+
+          <div id="panelAltisIg" class="kpi-panel">
+            <div class="kpi"><div class="name">Followers</div><div id="tabAltisIgFollowers" class="value">-</div></div>
+            <div class="kpi"><div class="name">Reels (Overall)</div><div id="tabAltisIgReelsCount" class="value">-</div></div>
+            <div class="kpi"><div class="name">Best Reel</div><div id="tabAltisIgBestReel" class="value">-</div></div>
+          </div>
+        </div>
+
+        <div class="kpis legacy-kpis">
           <div class="kpi"><div class="name">Meta Leads (Today)</div><div id="kpiLeads" class="value">-</div></div>
           <div class="kpi"><div class="name">Meta Leads (Last 30D)</div><div id="kpiLeads30d" class="value">-</div></div>
           <div class="kpi"><div class="name">Meta Spend (Today)</div><div id="kpiSpendToday" class="value">-</div></div>
@@ -733,6 +801,26 @@
         kpiWorstCampaign: document.getElementById("kpiWorstCampaign"),
         kpiIgFollowers: document.getElementById("kpiIgFollowers"),
         kpiIgBestReel: document.getElementById("kpiIgBestReel"),
+        tabCoxwellMeta: document.getElementById("tabCoxwellMeta"),
+        tabCoxwellIg: document.getElementById("tabCoxwellIg"),
+        tabAltisMeta: document.getElementById("tabAltisMeta"),
+        tabAltisIg: document.getElementById("tabAltisIg"),
+        panelCoxwellMeta: document.getElementById("panelCoxwellMeta"),
+        panelCoxwellIg: document.getElementById("panelCoxwellIg"),
+        panelAltisMeta: document.getElementById("panelAltisMeta"),
+        panelAltisIg: document.getElementById("panelAltisIg"),
+        tabCwMetaSpendToday: document.getElementById("tabCwMetaSpendToday"),
+        tabCwMetaLeadsToday: document.getElementById("tabCwMetaLeadsToday"),
+        tabCwMetaBestCampaign: document.getElementById("tabCwMetaBestCampaign"),
+        tabCwIgFollowers: document.getElementById("tabCwIgFollowers"),
+        tabCwIgReelsCount: document.getElementById("tabCwIgReelsCount"),
+        tabCwIgBestReel: document.getElementById("tabCwIgBestReel"),
+        tabAltisMetaSpendToday: document.getElementById("tabAltisMetaSpendToday"),
+        tabAltisMetaLeadsToday: document.getElementById("tabAltisMetaLeadsToday"),
+        tabAltisMetaBestCampaign: document.getElementById("tabAltisMetaBestCampaign"),
+        tabAltisIgFollowers: document.getElementById("tabAltisIgFollowers"),
+        tabAltisIgReelsCount: document.getElementById("tabAltisIgReelsCount"),
+        tabAltisIgBestReel: document.getElementById("tabAltisIgBestReel"),
         statusDot: document.getElementById("statusDot"),
         statusText: document.getElementById("statusText"),
         ga4Badge: document.getElementById("ga4Badge"),
@@ -749,6 +837,8 @@
       let currentConversationId = localStorage.getItem(STORAGE_CURR) || "";
       let editingMessageId = null;
       let openConvMenuId = null;
+      let metaAccounts = [];
+      let activeKpiTab = localStorage.getItem("mai-kpi-tab") || "coxwell-meta";
 
       function uid() {
         return `${Date.now()}_${Math.random().toString(16).slice(2)}`;
@@ -1022,6 +1112,7 @@
         const resp = await getJson("/api/meta/accounts");
         if (!resp.ok) return;
         const accounts = Array.isArray(resp.json?.accounts) ? resp.json.accounts : [];
+        metaAccounts = accounts;
         const defaultAccount = String(resp.json?.default_account || "");
         const selected = getMetaAccountId();
 
@@ -1038,6 +1129,35 @@
           "";
         el.metaAccount.value = nextValue;
         localStorage.setItem("meta-account-id", nextValue);
+      }
+
+      function setActiveKpiTab(tabKey) {
+        activeKpiTab = tabKey;
+        localStorage.setItem("mai-kpi-tab", tabKey);
+        const tabs = [
+          ["coxwell-meta", el.tabCoxwellMeta, el.panelCoxwellMeta],
+          ["coxwell-ig", el.tabCoxwellIg, el.panelCoxwellIg],
+          ["altis-meta", el.tabAltisMeta, el.panelAltisMeta],
+          ["altis-ig", el.tabAltisIg, el.panelAltisIg],
+        ];
+        for (const [key, btn, panel] of tabs) {
+          if (!btn || !panel) continue;
+          if (key === tabKey) {
+            btn.classList.add("active");
+            panel.classList.add("active");
+          } else {
+            btn.classList.remove("active");
+            panel.classList.remove("active");
+          }
+        }
+      }
+
+      function getBrandAccounts() {
+        const list = Array.isArray(metaAccounts) ? metaAccounts : [];
+        return {
+          coxwell: String(list[0] || ""),
+          altis: String(list[1] || list[0] || ""),
+        };
       }
 
       function getFolderName(folderId) {
@@ -1257,6 +1377,18 @@
         el.kpiWorstCampaign.textContent = "...";
         el.kpiIgFollowers.textContent = "...";
         el.kpiIgBestReel.textContent = "...";
+        el.tabCwMetaSpendToday.textContent = "...";
+        el.tabCwMetaLeadsToday.textContent = "...";
+        el.tabCwMetaBestCampaign.textContent = "...";
+        el.tabCwIgFollowers.textContent = "...";
+        el.tabCwIgReelsCount.textContent = "...";
+        el.tabCwIgBestReel.textContent = "...";
+        el.tabAltisMetaSpendToday.textContent = "...";
+        el.tabAltisMetaLeadsToday.textContent = "...";
+        el.tabAltisMetaBestCampaign.textContent = "...";
+        el.tabAltisIgFollowers.textContent = "...";
+        el.tabAltisIgReelsCount.textContent = "...";
+        el.tabAltisIgBestReel.textContent = "...";
       }
 
       function setGa4Badge(state, text) {
@@ -1349,6 +1481,8 @@
           return;
         }
 
+        const brandAccounts = getBrandAccounts();
+
         const [
           leads,
           leads30d,
@@ -1362,6 +1496,16 @@
           bestCampaign,
           igOverview,
           igBestReel,
+          coxwellMetaSpendToday,
+          coxwellMetaLeadsToday,
+          coxwellMetaBestCampaign,
+          coxwellIgOverview,
+          coxwellIgBestReel,
+          altisMetaSpendToday,
+          altisMetaLeadsToday,
+          altisMetaBestCampaign,
+          altisIgOverview,
+          altisIgBestReel,
           ga4Debug,
         ] = await Promise.all([
           postJson("/api/tools/run", { tool: "get_meta_leads_today", args: {} }),
@@ -1376,6 +1520,16 @@
           postJson("/api/tools/run", { tool: "get_meta_best_campaign", args: {} }),
           postJson("/api/tools/run", { tool: "get_instagram_account_overview", args: {} }),
           postJson("/api/tools/run", { tool: "get_instagram_best_reel", args: { period: "maximum" } }),
+          postJson("/api/tools/run", { tool: "get_meta_spend_today", args: { account_id: brandAccounts.coxwell } }),
+          postJson("/api/tools/run", { tool: "get_meta_leads_today", args: { account_id: brandAccounts.coxwell } }),
+          postJson("/api/tools/run", { tool: "get_meta_best_campaign", args: { account_id: brandAccounts.coxwell } }),
+          postJson("/api/tools/run", { tool: "get_instagram_account_overview", args: { account_id: brandAccounts.coxwell } }),
+          postJson("/api/tools/run", { tool: "get_instagram_best_reel", args: { account_id: brandAccounts.coxwell, period: "maximum" } }),
+          postJson("/api/tools/run", { tool: "get_meta_spend_today", args: { account_id: brandAccounts.altis } }),
+          postJson("/api/tools/run", { tool: "get_meta_leads_today", args: { account_id: brandAccounts.altis } }),
+          postJson("/api/tools/run", { tool: "get_meta_best_campaign", args: { account_id: brandAccounts.altis } }),
+          postJson("/api/tools/run", { tool: "get_instagram_account_overview", args: { account_id: brandAccounts.altis } }),
+          postJson("/api/tools/run", { tool: "get_instagram_best_reel", args: { account_id: brandAccounts.altis, period: "maximum" } }),
           getJson("/api/ga4/debug-tag"),
         ]);
 
@@ -1435,6 +1589,44 @@
         } else {
           el.kpiIgBestReel.textContent = "-";
         }
+
+        el.tabCwMetaSpendToday.textContent = coxwellMetaSpendToday.ok
+          ? formatCurrencyINR(coxwellMetaSpendToday.json?.spend)
+          : "-";
+        el.tabCwMetaLeadsToday.textContent = coxwellMetaLeadsToday.ok
+          ? String(coxwellMetaLeadsToday.json?.leads ?? "-")
+          : "-";
+        el.tabCwMetaBestCampaign.textContent = coxwellMetaBestCampaign.ok
+          ? String(coxwellMetaBestCampaign.json?.best?.campaign_name || "No campaign")
+          : "-";
+        el.tabCwIgFollowers.textContent = coxwellIgOverview.ok
+          ? String(coxwellIgOverview.json?.account?.followers_count ?? "-")
+          : "-";
+        el.tabCwIgReelsCount.textContent = coxwellIgBestReel.ok
+          ? String(Array.isArray(coxwellIgBestReel.json?.top) ? coxwellIgBestReel.json.top.length : 0)
+          : "-";
+        el.tabCwIgBestReel.textContent = coxwellIgBestReel.ok
+          ? String((coxwellIgBestReel.json?.best?.caption || "No reel")).slice(0, 26)
+          : "-";
+
+        el.tabAltisMetaSpendToday.textContent = altisMetaSpendToday.ok
+          ? formatCurrencyINR(altisMetaSpendToday.json?.spend)
+          : "-";
+        el.tabAltisMetaLeadsToday.textContent = altisMetaLeadsToday.ok
+          ? String(altisMetaLeadsToday.json?.leads ?? "-")
+          : "-";
+        el.tabAltisMetaBestCampaign.textContent = altisMetaBestCampaign.ok
+          ? String(altisMetaBestCampaign.json?.best?.campaign_name || "No campaign")
+          : "-";
+        el.tabAltisIgFollowers.textContent = altisIgOverview.ok
+          ? String(altisIgOverview.json?.account?.followers_count ?? "-")
+          : "-";
+        el.tabAltisIgReelsCount.textContent = altisIgBestReel.ok
+          ? String(Array.isArray(altisIgBestReel.json?.top) ? altisIgBestReel.json.top.length : 0)
+          : "-";
+        el.tabAltisIgBestReel.textContent = altisIgBestReel.ok
+          ? String((altisIgBestReel.json?.best?.caption || "No reel")).slice(0, 26)
+          : "-";
 
         if (!ga4Debug.ok) {
           setGa4Badge("err", "GA4: config/access error");
@@ -1838,9 +2030,14 @@
       });
       el.scrollTopBtn.onclick = scrollChatToTop;
       el.chat.addEventListener("scroll", updateScrollTopVisibility);
+      el.tabCoxwellMeta.onclick = () => setActiveKpiTab("coxwell-meta");
+      el.tabCoxwellIg.onclick = () => setActiveKpiTab("coxwell-ig");
+      el.tabAltisMeta.onclick = () => setActiveKpiTab("altis-meta");
+      el.tabAltisIg.onclick = () => setActiveKpiTab("altis-ig");
 
       load();
       loadMetaAccounts();
+      setActiveKpiTab(activeKpiTab);
       renderChips();
       renderFolderList();
       renderConversationList();

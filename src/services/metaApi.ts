@@ -17,6 +17,23 @@ const InstagramEnvSchema = z.object({
 
 type InstagramEnv = z.infer<typeof InstagramEnvSchema>;
 
+function parseStringMapEnv(name: string): Record<string, string> {
+  const raw = String(process.env[name] || "").trim();
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(parsed || {})) {
+      const key = String(k || "").trim();
+      const value = String(v || "").trim();
+      if (key && value) out[key] = value;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
 function getMetaEnv(accountId?: string): MetaEnv {
   const resolvedAccount = resolveMetaAccountId(accountId);
   const parsed = MetaEnvSchema.safeParse({
@@ -32,10 +49,12 @@ function getMetaEnv(accountId?: string): MetaEnv {
   return parsed.data;
 }
 
-function getInstagramEnv(): InstagramEnv {
+function getInstagramEnv(accountId?: string): InstagramEnv {
+  const tokenMap = parseStringMapEnv("IG_ACCESS_TOKEN_MAP");
+  const mappedToken = accountId ? tokenMap[accountId] : "";
   const parsed = InstagramEnvSchema.safeParse({
     // Prefer dedicated IG token; fallback to META token for backward compatibility.
-    IG_ACCESS_TOKEN: process.env.IG_ACCESS_TOKEN || process.env.META_ACCESS_TOKEN,
+    IG_ACCESS_TOKEN: mappedToken || process.env.IG_ACCESS_TOKEN || process.env.META_ACCESS_TOKEN,
     META_API_VERSION: process.env.META_API_VERSION ?? "v20.0",
   });
 
@@ -187,8 +206,10 @@ function todayDatePresetForIST(): { since: string; until: string } {
   return { since: ymd, until: ymd };
 }
 
-function getInstagramBusinessAccountId(): string {
-  const id = String(process.env.IG_BUSINESS_ACCOUNT_ID || "").trim();
+function getInstagramBusinessAccountId(accountId?: string): string {
+  const idMap = parseStringMapEnv("IG_BUSINESS_ACCOUNT_ID_MAP");
+  const mappedId = accountId ? idMap[accountId] : "";
+  const id = String(mappedId || process.env.IG_BUSINESS_ACCOUNT_ID || "").trim();
   if (!id) throw new Error("IG_BUSINESS_ACCOUNT_ID not set");
   return id;
 }
@@ -222,10 +243,10 @@ type IgReelRow = {
   shares: number;
 };
 
-async function fetchIgMediaBaseRows(env: InstagramEnv): Promise<
+async function fetchIgMediaBaseRows(env: InstagramEnv, accountId?: string): Promise<
   Array<{ id: string; caption: string; permalink: string; media_type: string; timestamp: string }>
 > {
-  const igId = getInstagramBusinessAccountId();
+  const igId = getInstagramBusinessAccountId(accountId);
   const fields = ["id", "caption", "permalink", "media_type", "timestamp"].join(",");
   const params = encodeParams({
     access_token: env.IG_ACCESS_TOKEN,
@@ -292,9 +313,8 @@ async function fetchIgReelsForRange(
   sinceYmd: string,
   untilYmd: string
 ): Promise<IgReelRow[]> {
-  void accountId;
-  const env = getInstagramEnv();
-  const baseRows = await fetchIgMediaBaseRows(env);
+  const env = getInstagramEnv(accountId);
+  const baseRows = await fetchIgMediaBaseRows(env, accountId);
 
   const filtered = baseRows.filter((r) => {
     const ymd = parseIsoDateOnly(r.timestamp);
@@ -752,9 +772,8 @@ export async function getInstagramReelsMonth(accountId?: string): Promise<Instag
 }
 
 export async function getInstagramAccountOverview(accountId?: string): Promise<InstagramAccountOverviewResult> {
-  void accountId;
-  const env = getInstagramEnv();
-  const igId = getInstagramBusinessAccountId();
+  const env = getInstagramEnv(accountId);
+  const igId = getInstagramBusinessAccountId(accountId);
   const fields = ["id", "username", "name", "followers_count", "follows_count", "media_count"].join(",");
   const params = encodeParams({
     access_token: env.IG_ACCESS_TOKEN,
