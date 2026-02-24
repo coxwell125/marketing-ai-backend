@@ -645,7 +645,7 @@
           <div class="kpi"><div class="name">Meta Spend (Last 7D)</div><div id="kpiSpend7d" class="value">-</div></div>
           <div class="kpi"><div class="name">GA4 Sessions (Last 7D)</div><div id="kpiGa4Sessions7d" class="value">-</div></div>
           <div class="kpi"><div class="name">IG Followers</div><div id="kpiIgFollowers" class="value">-</div></div>
-          <div class="kpi"><div class="name">Best Reel (Month)</div><div id="kpiIgBestReel" class="value">-</div></div>
+          <div class="kpi"><div class="name">Best Reel (Overall)</div><div id="kpiIgBestReel" class="value">-</div></div>
         </div>
         <div class="statusbar">
           <div id="statusDot" class="status-dot"></div>
@@ -1375,7 +1375,7 @@
           postJson("/api/tools/run", { tool: "get_ga4_sessions_last_7_days", args: {} }),
           postJson("/api/tools/run", { tool: "get_meta_best_campaign", args: {} }),
           postJson("/api/tools/run", { tool: "get_instagram_account_overview", args: {} }),
-          postJson("/api/tools/run", { tool: "get_instagram_best_reel", args: { period: "this_month" } }),
+          postJson("/api/tools/run", { tool: "get_instagram_best_reel", args: { period: "maximum" } }),
           getJson("/api/ga4/debug-tag"),
         ]);
 
