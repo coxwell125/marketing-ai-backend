@@ -855,21 +855,41 @@ export async function getGa4TopPagesScreens(
   if (!isGa4Enabled()) throw new Error("ENABLE_GA4_API=false");
   const client = getClient();
   const { startDate, endDate } = rangeForPeriod(period);
-  const [resp] = await client.runReport({
-    property: getProperty(accountId),
-    dateRanges: [{ startDate, endDate }],
-    dimensions: [{ name: "pageTitleAndScreenClass" }],
-    metrics: [
-      { name: "views" },
-      { name: "activeUsers" },
-      { name: "eventCount" },
-      { name: "bounceRate" },
-    ],
-    orderBys: [{ metric: { metricName: "views" }, desc: true }],
-    limit,
-  });
+
+  const attempts = [
+    { dim: "pageTitleAndScreenClass", metric: "views" },
+    { dim: "pageTitle", metric: "views" },
+    { dim: "pageTitle", metric: "screenPageViews" },
+  ] as const;
+
+  let resp: any = null;
+  let lastErr: unknown = null;
+
+  for (const attempt of attempts) {
+    try {
+      const [r] = await client.runReport({
+        property: getProperty(accountId),
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: attempt.dim }],
+        metrics: [
+          { name: attempt.metric },
+          { name: "activeUsers" },
+          { name: "eventCount" },
+          { name: "bounceRate" },
+        ],
+        orderBys: [{ metric: { metricName: attempt.metric }, desc: true }],
+        limit,
+      });
+      resp = r;
+      break;
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  if (!resp) throw (lastErr || new Error("GA4 top pages query failed"));
+
   const rows =
-    resp.rows?.map((r) => ({
+    resp.rows?.map((r: any) => ({
       page_title: String(r.dimensionValues?.[0]?.value || "").trim() || "(not set)",
       views: Number(r.metricValues?.[0]?.value || 0) || 0,
       active_users: Number(r.metricValues?.[1]?.value || 0) || 0,
