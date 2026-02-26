@@ -1724,6 +1724,17 @@
         else sub.removeAttribute("title");
       }
 
+      function formatReelLabel(row) {
+        if (!row || typeof row !== "object") return "";
+        const caption = String(row.caption || "").trim();
+        if (caption) {
+          const firstLine = caption.split("\n")[0].trim();
+          return firstLine.slice(0, 64);
+        }
+        const id = String(row.media_id || "").trim();
+        return id ? `Reel ${id}` : "";
+      }
+
       function showAlert(message) {
         if (!el.alertStrip || !el.alertText) return;
         if (!message) {
@@ -2278,21 +2289,34 @@
         el.tabAltisIgMediaCount.textContent = altisIgOverview.ok
           ? String(altisIgOverview.json?.account?.media_count ?? "-")
           : "-";
-        const altisReelName = altisIgBestReel.ok
-          ? String(altisIgBestReel.json?.best?.caption || "").trim().slice(0, 46)
-          : "";
+        const altisTopReels = Array.isArray(altisIgBestReel.json?.top) ? altisIgBestReel.json.top : [];
+        const altisBestByPlays = altisTopReels.reduce((best, r) => {
+          const v = Number(r?.plays ?? 0);
+          const b = Number(best?.plays ?? -1);
+          return v > b ? r : best;
+        }, null);
+        const altisBestByReach = altisTopReels.reduce((best, r) => {
+          const v = Number(r?.reach ?? 0);
+          const b = Number(best?.reach ?? -1);
+          return v > b ? r : best;
+        }, null);
+        const altisBestBySaves = altisTopReels.reduce((best, r) => {
+          const v = Number(r?.saved ?? 0);
+          const b = Number(best?.saved ?? -1);
+          return v > b ? r : best;
+        }, null);
         el.tabAltisIgBestPlays.textContent = altisIgBestReel.ok
           ? String(Number(altisIgBestReel.json?.best?.plays ?? 0))
           : "-";
-        setKpiCardSubvalue(el.tabAltisIgBestPlays, altisReelName);
+        setKpiCardSubvalue(el.tabAltisIgBestPlays, formatReelLabel(altisBestByPlays || altisIgBestReel.json?.best));
         el.tabAltisIgBestReach.textContent = altisIgBestReel.ok
           ? String(Number(altisIgBestReel.json?.best?.reach ?? 0))
           : "-";
-        setKpiCardSubvalue(el.tabAltisIgBestReach, altisReelName);
+        setKpiCardSubvalue(el.tabAltisIgBestReach, formatReelLabel(altisBestByReach || altisIgBestReel.json?.best));
         el.tabAltisIgBestSaves.textContent = altisIgBestReel.ok
           ? String(Number(altisIgBestReel.json?.best?.saved ?? 0))
           : "-";
-        setKpiCardSubvalue(el.tabAltisIgBestSaves, altisReelName);
+        setKpiCardSubvalue(el.tabAltisIgBestSaves, formatReelLabel(altisBestBySaves || altisIgBestReel.json?.best));
 
         const alertMessages = [];
         const coxwellIgDiag = buildInstagramDiagnostic(
