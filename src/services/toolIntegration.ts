@@ -19,8 +19,13 @@ import {
   getGa4ActiveUsersToday,
   getGa4ActiveUsersYesterday,
   getGa4ActiveUsersLast7Days,
+  getGa4ActiveUsersLast15Days,
+  getGa4ActiveUsersLast30Days,
   getGa4SessionsToday,
+  getGa4SessionsYesterday,
   getGa4SessionsLast7Days,
+  getGa4SessionsLast15Days,
+  getGa4SessionsLast30Days,
   getGa4SessionsMonth,
   getGa4TopPagesToday,
 } from "./ga4Api";
@@ -324,6 +329,26 @@ function makeLocalMock(toolName: string, args: AnyJson = {}, reason = "Fallback 
       _mock: { used: true, reason },
     };
   }
+  if (toolName === "get_ga4_active_users_last_15_days") {
+    return {
+      ok: true,
+      tool: toolName,
+      timezone: process.env.GA4_TIMEZONE || "Asia/Kolkata",
+      as_of_ist: asOf,
+      active_users: stableNumber(`${toolName}|${today}`, 900, 12000),
+      _mock: { used: true, reason },
+    };
+  }
+  if (toolName === "get_ga4_active_users_last_30_days") {
+    return {
+      ok: true,
+      tool: toolName,
+      timezone: process.env.GA4_TIMEZONE || "Asia/Kolkata",
+      as_of_ist: asOf,
+      active_users: stableNumber(`${toolName}|${today}`, 1400, 22000),
+      _mock: { used: true, reason },
+    };
+  }
 
   if (toolName === "get_ga4_sessions_today") {
     return {
@@ -332,6 +357,16 @@ function makeLocalMock(toolName: string, args: AnyJson = {}, reason = "Fallback 
       timezone: process.env.GA4_TIMEZONE || "Asia/Kolkata",
       as_of_ist: asOf,
       sessions: stableNumber(`${toolName}|${today}`, 180, 2600),
+      _mock: { used: true, reason },
+    };
+  }
+  if (toolName === "get_ga4_sessions_yesterday") {
+    return {
+      ok: true,
+      tool: toolName,
+      timezone: process.env.GA4_TIMEZONE || "Asia/Kolkata",
+      as_of_ist: asOf,
+      sessions: stableNumber(`${toolName}|${today}`, 160, 2400),
       _mock: { used: true, reason },
     };
   }
@@ -353,6 +388,26 @@ function makeLocalMock(toolName: string, args: AnyJson = {}, reason = "Fallback 
       timezone: process.env.GA4_TIMEZONE || "Asia/Kolkata",
       as_of_ist: asOf,
       sessions: stableNumber(`${toolName}|${today}`, 150, 6500),
+      _mock: { used: true, reason },
+    };
+  }
+  if (toolName === "get_ga4_sessions_last_15_days") {
+    return {
+      ok: true,
+      tool: toolName,
+      timezone: process.env.GA4_TIMEZONE || "Asia/Kolkata",
+      as_of_ist: asOf,
+      sessions: stableNumber(`${toolName}|${today}`, 2800, 14000),
+      _mock: { used: true, reason },
+    };
+  }
+  if (toolName === "get_ga4_sessions_last_30_days") {
+    return {
+      ok: true,
+      tool: toolName,
+      timezone: process.env.GA4_TIMEZONE || "Asia/Kolkata",
+      as_of_ist: asOf,
+      sessions: stableNumber(`${toolName}|${today}`, 5000, 28000),
       _mock: { used: true, reason },
     };
   }
@@ -613,11 +668,38 @@ export const toolDefs: ToolDef[] = [
       ),
   },
   {
+    name: "get_ga4_active_users_last_15_days",
+    description: "Returns GA4 active users for last 15 days (15daysAgo -> today).",
+    inputSchema: { type: "object", properties: { account_id: { type: "string" } }, additionalProperties: false },
+    handler: async (args) =>
+      callToolWithFallback("get_ga4_active_users_last_15_days", args || {}, () =>
+        getGa4ActiveUsersLast15Days(args?.account_id)
+      ),
+  },
+  {
+    name: "get_ga4_active_users_last_30_days",
+    description: "Returns GA4 active users for last 30 days (30daysAgo -> today).",
+    inputSchema: { type: "object", properties: { account_id: { type: "string" } }, additionalProperties: false },
+    handler: async (args) =>
+      callToolWithFallback("get_ga4_active_users_last_30_days", args || {}, () =>
+        getGa4ActiveUsersLast30Days(args?.account_id)
+      ),
+  },
+  {
     name: "get_ga4_sessions_today",
     description: "Returns GA4 sessions for today.",
     inputSchema: { type: "object", properties: { account_id: { type: "string" } }, additionalProperties: false },
     handler: async (args) =>
       callToolWithFallback("get_ga4_sessions_today", args || {}, () => getGa4SessionsToday(args?.account_id)),
+  },
+  {
+    name: "get_ga4_sessions_yesterday",
+    description: "Returns GA4 sessions for yesterday.",
+    inputSchema: { type: "object", properties: { account_id: { type: "string" } }, additionalProperties: false },
+    handler: async (args) =>
+      callToolWithFallback("get_ga4_sessions_yesterday", args || {}, () =>
+        getGa4SessionsYesterday(args?.account_id)
+      ),
   },
   {
     name: "get_ga4_sessions_month",
@@ -633,6 +715,24 @@ export const toolDefs: ToolDef[] = [
     handler: async (args) =>
       callToolWithFallback("get_ga4_sessions_last_7_days", args || {}, () =>
         getGa4SessionsLast7Days(args?.account_id)
+      ),
+  },
+  {
+    name: "get_ga4_sessions_last_15_days",
+    description: "Returns GA4 sessions for last 15 days.",
+    inputSchema: { type: "object", properties: { account_id: { type: "string" } }, additionalProperties: false },
+    handler: async (args) =>
+      callToolWithFallback("get_ga4_sessions_last_15_days", args || {}, () =>
+        getGa4SessionsLast15Days(args?.account_id)
+      ),
+  },
+  {
+    name: "get_ga4_sessions_last_30_days",
+    description: "Returns GA4 sessions for last 30 days.",
+    inputSchema: { type: "object", properties: { account_id: { type: "string" } }, additionalProperties: false },
+    handler: async (args) =>
+      callToolWithFallback("get_ga4_sessions_last_30_days", args || {}, () =>
+        getGa4SessionsLast30Days(args?.account_id)
       ),
   },
   {

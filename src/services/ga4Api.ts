@@ -389,6 +389,52 @@ export async function getGa4ActiveUsersLast7Days(accountId?: string): Promise<
   };
 }
 
+export async function getGa4ActiveUsersLast15Days(accountId?: string): Promise<
+  Ga4Base & { tool: "get_ga4_active_users_last_15_days"; active_users: number }
+> {
+  if (!isGa4Enabled()) throw new Error("ENABLE_GA4_API=false");
+
+  const client = getClient();
+  const [resp] = await client.runReport({
+    property: getProperty(accountId),
+    dateRanges: [{ startDate: "15daysAgo", endDate: "today" }],
+    metrics: [{ name: "activeUsers" }],
+  });
+
+  const v = resp.rows?.[0]?.metricValues?.[0]?.value ?? "0";
+
+  return {
+    ok: true,
+    tool: "get_ga4_active_users_last_15_days",
+    timezone: getTimezone(),
+    as_of_ist: nowIso(),
+    active_users: Number(v) || 0,
+  };
+}
+
+export async function getGa4ActiveUsersLast30Days(accountId?: string): Promise<
+  Ga4Base & { tool: "get_ga4_active_users_last_30_days"; active_users: number }
+> {
+  if (!isGa4Enabled()) throw new Error("ENABLE_GA4_API=false");
+
+  const client = getClient();
+  const [resp] = await client.runReport({
+    property: getProperty(accountId),
+    dateRanges: [{ startDate: "30daysAgo", endDate: "today" }],
+    metrics: [{ name: "activeUsers" }],
+  });
+
+  const v = resp.rows?.[0]?.metricValues?.[0]?.value ?? "0";
+
+  return {
+    ok: true,
+    tool: "get_ga4_active_users_last_30_days",
+    timezone: getTimezone(),
+    as_of_ist: nowIso(),
+    active_users: Number(v) || 0,
+  };
+}
+
 export async function getGa4SessionsToday(accountId?: string): Promise<
   Ga4Base & { tool: "get_ga4_sessions_today"; sessions: number }
 > {
@@ -406,6 +452,29 @@ export async function getGa4SessionsToday(accountId?: string): Promise<
   return {
     ok: true,
     tool: "get_ga4_sessions_today",
+    timezone: getTimezone(),
+    as_of_ist: nowIso(),
+    sessions: Number(v) || 0,
+  };
+}
+
+export async function getGa4SessionsYesterday(accountId?: string): Promise<
+  Ga4Base & { tool: "get_ga4_sessions_yesterday"; sessions: number }
+> {
+  if (!isGa4Enabled()) throw new Error("ENABLE_GA4_API=false");
+
+  const client = getClient();
+  const [resp] = await client.runReport({
+    property: getProperty(accountId),
+    dateRanges: [{ startDate: "yesterday", endDate: "yesterday" }],
+    metrics: [{ name: "sessions" }],
+  });
+
+  const v = resp.rows?.[0]?.metricValues?.[0]?.value ?? "0";
+
+  return {
+    ok: true,
+    tool: "get_ga4_sessions_yesterday",
     timezone: getTimezone(),
     as_of_ist: nowIso(),
     sessions: Number(v) || 0,
@@ -453,6 +522,52 @@ export async function getGa4SessionsLast7Days(accountId?: string): Promise<
   return {
     ok: true,
     tool: "get_ga4_sessions_last_7_days",
+    timezone: getTimezone(),
+    as_of_ist: nowIso(),
+    sessions: Number(v) || 0,
+  };
+}
+
+export async function getGa4SessionsLast15Days(accountId?: string): Promise<
+  Ga4Base & { tool: "get_ga4_sessions_last_15_days"; sessions: number }
+> {
+  if (!isGa4Enabled()) throw new Error("ENABLE_GA4_API=false");
+
+  const client = getClient();
+  const [resp] = await client.runReport({
+    property: getProperty(accountId),
+    dateRanges: [{ startDate: "15daysAgo", endDate: "today" }],
+    metrics: [{ name: "sessions" }],
+  });
+
+  const v = resp.rows?.[0]?.metricValues?.[0]?.value ?? "0";
+
+  return {
+    ok: true,
+    tool: "get_ga4_sessions_last_15_days",
+    timezone: getTimezone(),
+    as_of_ist: nowIso(),
+    sessions: Number(v) || 0,
+  };
+}
+
+export async function getGa4SessionsLast30Days(accountId?: string): Promise<
+  Ga4Base & { tool: "get_ga4_sessions_last_30_days"; sessions: number }
+> {
+  if (!isGa4Enabled()) throw new Error("ENABLE_GA4_API=false");
+
+  const client = getClient();
+  const [resp] = await client.runReport({
+    property: getProperty(accountId),
+    dateRanges: [{ startDate: "30daysAgo", endDate: "today" }],
+    metrics: [{ name: "sessions" }],
+  });
+
+  const v = resp.rows?.[0]?.metricValues?.[0]?.value ?? "0";
+
+  return {
+    ok: true,
+    tool: "get_ga4_sessions_last_30_days",
     timezone: getTimezone(),
     as_of_ist: nowIso(),
     sessions: Number(v) || 0,
