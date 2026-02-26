@@ -6,8 +6,42 @@ function isGa4Enabled(): boolean {
   return String(process.env.ENABLE_GA4_API || "").toLowerCase() === "true";
 }
 
-function getProperty(): string {
-  const pid = process.env.GA4_PROPERTY_ID;
+function parseStringMapEnv(name: string): Record<string, string> {
+  const raw = String(process.env[name] || "").trim();
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(parsed || {})) {
+      const key = String(k || "").trim();
+      const value = String(v || "").trim();
+      if (key && value) out[key] = value;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function normalizeMetaAccountIdForLookup(raw: string): string {
+  const v = String(raw || "").trim();
+  if (!v) return "";
+  return v.startsWith("act_") ? v : `act_${v}`;
+}
+
+function accountMapLookup(map: Record<string, string>, accountId?: string): string {
+  if (!accountId) return "";
+  const raw = String(accountId || "").trim();
+  if (!raw) return "";
+  const normalized = normalizeMetaAccountIdForLookup(raw);
+  const stripped = normalized.startsWith("act_") ? normalized.slice(4) : normalized;
+  return map[raw] || map[normalized] || map[stripped] || "";
+}
+
+function getProperty(accountId?: string): string {
+  const propertyMap = parseStringMapEnv("GA4_PROPERTY_ID_MAP");
+  const mapped = accountMapLookup(propertyMap, accountId);
+  const pid = String(mapped || process.env.GA4_PROPERTY_ID || "").trim();
   if (!pid) throw new Error("GA4_PROPERTY_ID not set");
   return `properties/${pid}`;
 }
@@ -277,7 +311,7 @@ export async function debugGa4Tag(): Promise<{
   }
 }
 
-export async function getGa4ActiveUsersToday(): Promise<
+export async function getGa4ActiveUsersToday(accountId?: string): Promise<
   Ga4Base & { tool: "get_ga4_active_users_today"; active_users: number }
 > {
   if (!isGa4Enabled()) throw new Error("ENABLE_GA4_API=false");
@@ -287,13 +321,13 @@ export async function getGa4ActiveUsersToday(): Promise<
   let v = "0";
   try {
     const [rt] = await client.runRealtimeReport({
-      property: getProperty(),
+      property: getProperty(accountId),
       metrics: [{ name: "activeUsers" }],
     });
     v = rt.rows?.[0]?.metricValues?.[0]?.value ?? "0";
   } catch {
     const [resp] = await client.runReport({
-      property: getProperty(),
+      property: getProperty(accountId),
       dateRanges: [{ startDate: "today", endDate: "today" }],
       metrics: [{ name: "activeUsers" }],
     });
@@ -309,14 +343,14 @@ export async function getGa4ActiveUsersToday(): Promise<
   };
 }
 
-export async function getGa4ActiveUsersYesterday(): Promise<
+export async function getGa4ActiveUsersYesterday(accountId?: string): Promise<
   Ga4Base & { tool: "get_ga4_active_users_yesterday"; active_users: number }
 > {
   if (!isGa4Enabled()) throw new Error("ENABLE_GA4_API=false");
 
   const client = getClient();
   const [resp] = await client.runReport({
-    property: getProperty(),
+    property: getProperty(accountId),
     dateRanges: [{ startDate: "yesterday", endDate: "yesterday" }],
     metrics: [{ name: "activeUsers" }],
   });
@@ -332,14 +366,14 @@ export async function getGa4ActiveUsersYesterday(): Promise<
   };
 }
 
-export async function getGa4ActiveUsersLast7Days(): Promise<
+export async function getGa4ActiveUsersLast7Days(accountId?: string): Promise<
   Ga4Base & { tool: "get_ga4_active_users_last_7_days"; active_users: number }
 > {
   if (!isGa4Enabled()) throw new Error("ENABLE_GA4_API=false");
 
   const client = getClient();
   const [resp] = await client.runReport({
-    property: getProperty(),
+    property: getProperty(accountId),
     dateRanges: [{ startDate: "7daysAgo", endDate: "today" }],
     metrics: [{ name: "activeUsers" }],
   });
@@ -355,14 +389,14 @@ export async function getGa4ActiveUsersLast7Days(): Promise<
   };
 }
 
-export async function getGa4SessionsToday(): Promise<
+export async function getGa4SessionsToday(accountId?: string): Promise<
   Ga4Base & { tool: "get_ga4_sessions_today"; sessions: number }
 > {
   if (!isGa4Enabled()) throw new Error("ENABLE_GA4_API=false");
 
   const client = getClient();
   const [resp] = await client.runReport({
-    property: getProperty(),
+    property: getProperty(accountId),
     dateRanges: [{ startDate: "today", endDate: "today" }],
     metrics: [{ name: "sessions" }],
   });
@@ -378,7 +412,7 @@ export async function getGa4SessionsToday(): Promise<
   };
 }
 
-export async function getGa4SessionsMonth(): Promise<
+export async function getGa4SessionsMonth(accountId?: string): Promise<
   Ga4Base & { tool: "get_ga4_sessions_month"; sessions: number }
 > {
   if (!isGa4Enabled()) throw new Error("ENABLE_GA4_API=false");
@@ -386,7 +420,7 @@ export async function getGa4SessionsMonth(): Promise<
   const client = getClient();
   const startDate = firstDayOfCurrentMonthYmd();
   const [resp] = await client.runReport({
-    property: getProperty(),
+    property: getProperty(accountId),
     dateRanges: [{ startDate, endDate: "today" }],
     metrics: [{ name: "sessions" }],
   });
@@ -402,14 +436,14 @@ export async function getGa4SessionsMonth(): Promise<
   };
 }
 
-export async function getGa4SessionsLast7Days(): Promise<
+export async function getGa4SessionsLast7Days(accountId?: string): Promise<
   Ga4Base & { tool: "get_ga4_sessions_last_7_days"; sessions: number }
 > {
   if (!isGa4Enabled()) throw new Error("ENABLE_GA4_API=false");
 
   const client = getClient();
   const [resp] = await client.runReport({
-    property: getProperty(),
+    property: getProperty(accountId),
     dateRanges: [{ startDate: "7daysAgo", endDate: "today" }],
     metrics: [{ name: "sessions" }],
   });
@@ -425,7 +459,7 @@ export async function getGa4SessionsLast7Days(): Promise<
   };
 }
 
-export async function getGa4TopPagesToday(limit = 10): Promise<
+export async function getGa4TopPagesToday(limit = 10, accountId?: string): Promise<
   Ga4Base & {
     tool: "get_ga4_top_pages_today";
     rows: Array<{ pagePath: string; pageTitle: string; views: number }>;
@@ -435,7 +469,7 @@ export async function getGa4TopPagesToday(limit = 10): Promise<
 
   const client = getClient();
   const [resp] = await client.runReport({
-    property: getProperty(),
+    property: getProperty(accountId),
     dateRanges: [{ startDate: "today", endDate: "today" }],
     dimensions: [{ name: "pagePath" }, { name: "pageTitle" }],
     metrics: [{ name: "screenPageViews" }],

@@ -590,53 +590,63 @@ export const toolDefs: ToolDef[] = [
   {
     name: "get_ga4_active_users_today",
     description: "Returns GA4 active users for today.",
-    inputSchema: { type: "object", properties: {}, additionalProperties: false },
-    handler: async () =>
-      callToolWithFallback("get_ga4_active_users_today", {}, () => getGa4ActiveUsersToday()),
+    inputSchema: { type: "object", properties: { account_id: { type: "string" } }, additionalProperties: false },
+    handler: async (args) =>
+      callToolWithFallback("get_ga4_active_users_today", args || {}, () => getGa4ActiveUsersToday(args?.account_id)),
   },
   {
     name: "get_ga4_active_users_yesterday",
     description: "Returns GA4 active users for yesterday.",
-    inputSchema: { type: "object", properties: {}, additionalProperties: false },
-    handler: async () =>
-      callToolWithFallback("get_ga4_active_users_yesterday", {}, () => getGa4ActiveUsersYesterday()),
+    inputSchema: { type: "object", properties: { account_id: { type: "string" } }, additionalProperties: false },
+    handler: async (args) =>
+      callToolWithFallback("get_ga4_active_users_yesterday", args || {}, () =>
+        getGa4ActiveUsersYesterday(args?.account_id)
+      ),
   },
   {
     name: "get_ga4_active_users_last_7_days",
     description: "Returns GA4 active users for last 7 days (7daysAgo -> today).",
-    inputSchema: { type: "object", properties: {}, additionalProperties: false },
-    handler: async () =>
-      callToolWithFallback("get_ga4_active_users_last_7_days", {}, () => getGa4ActiveUsersLast7Days()),
+    inputSchema: { type: "object", properties: { account_id: { type: "string" } }, additionalProperties: false },
+    handler: async (args) =>
+      callToolWithFallback("get_ga4_active_users_last_7_days", args || {}, () =>
+        getGa4ActiveUsersLast7Days(args?.account_id)
+      ),
   },
   {
     name: "get_ga4_sessions_today",
     description: "Returns GA4 sessions for today.",
-    inputSchema: { type: "object", properties: {}, additionalProperties: false },
-    handler: async () => callToolWithFallback("get_ga4_sessions_today", {}, () => getGa4SessionsToday()),
+    inputSchema: { type: "object", properties: { account_id: { type: "string" } }, additionalProperties: false },
+    handler: async (args) =>
+      callToolWithFallback("get_ga4_sessions_today", args || {}, () => getGa4SessionsToday(args?.account_id)),
   },
   {
     name: "get_ga4_sessions_month",
     description: "Returns GA4 sessions from firstDayOfMonth → today.",
-    inputSchema: { type: "object", properties: {}, additionalProperties: false },
-    handler: async () => callToolWithFallback("get_ga4_sessions_month", {}, () => getGa4SessionsMonth()),
+    inputSchema: { type: "object", properties: { account_id: { type: "string" } }, additionalProperties: false },
+    handler: async (args) =>
+      callToolWithFallback("get_ga4_sessions_month", args || {}, () => getGa4SessionsMonth(args?.account_id)),
   },
   {
     name: "get_ga4_sessions_last_7_days",
     description: "Returns GA4 sessions for last 7 days.",
-    inputSchema: { type: "object", properties: {}, additionalProperties: false },
-    handler: async () =>
-      callToolWithFallback("get_ga4_sessions_last_7_days", {}, () => getGa4SessionsLast7Days()),
+    inputSchema: { type: "object", properties: { account_id: { type: "string" } }, additionalProperties: false },
+    handler: async (args) =>
+      callToolWithFallback("get_ga4_sessions_last_7_days", args || {}, () =>
+        getGa4SessionsLast7Days(args?.account_id)
+      ),
   },
   {
     name: "get_ga4_top_pages_today",
     description: "Returns top pages today by views (default 10).",
     inputSchema: {
       type: "object",
-      properties: { limit: { type: "number" } },
+      properties: { limit: { type: "number" }, account_id: { type: "string" } },
       additionalProperties: false,
     },
     handler: async (args) =>
-      callToolWithFallback("get_ga4_top_pages_today", args, () => getGa4TopPagesToday(args?.limit ?? 10)),
+      callToolWithFallback("get_ga4_top_pages_today", args, () =>
+        getGa4TopPagesToday(args?.limit ?? 10, args?.account_id)
+      ),
   },
 ];
 
@@ -659,7 +669,7 @@ export async function runToolByName(name: string, args: AnyJson, context?: ToolR
   if (
     context?.metaAccountId &&
     !finalArgs.account_id &&
-    (name.startsWith("get_meta_") || name.startsWith("get_instagram_"))
+    (name.startsWith("get_meta_") || name.startsWith("get_instagram_") || name.startsWith("get_ga4_"))
   ) {
     finalArgs.account_id = context.metaAccountId;
   }

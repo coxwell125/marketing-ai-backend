@@ -1065,8 +1065,10 @@
           <div class="kpi-tabs">
             <button id="tabCoxwellMeta" class="kpi-tab active">Coxwell Meta Ads</button>
             <button id="tabCoxwellIg" class="kpi-tab">Coxwell Instagram</button>
+            <button id="tabCoxwellGa4" class="kpi-tab">Coxwell GA4</button>
             <button id="tabAltisMeta" class="kpi-tab">Altis Meta Ads</button>
             <button id="tabAltisIg" class="kpi-tab">Altis Instagram</button>
+            <button id="tabAltisGa4" class="kpi-tab">Altis GA4</button>
           </div>
           <div id="tabHint" class="tab-hint">Coxwell Meta Ads overview</div>
 
@@ -1088,6 +1090,15 @@
             <div class="kpi ig-card"><div class="name" title="Saves on best performing reel">Best Reel Saves</div><div id="tabCwIgBestSaves" class="value">-</div></div>
           </div>
 
+          <div id="panelCoxwellGa4" class="kpi-panel">
+            <div class="kpi"><div class="name" title="Realtime/current active users">Active Users (Today)</div><div id="tabCwGa4ActiveToday" class="value">-</div></div>
+            <div class="kpi"><div class="name" title="Active users yesterday">Active Users (Yesterday)</div><div id="tabCwGa4ActiveYesterday" class="value">-</div></div>
+            <div class="kpi"><div class="name" title="Active users over last 7 days">Active Users (Last 7D)</div><div id="tabCwGa4Active7d" class="value">-</div></div>
+            <div class="kpi"><div class="name" title="Sessions today">Sessions (Today)</div><div id="tabCwGa4SessionsToday" class="value">-</div></div>
+            <div class="kpi"><div class="name" title="Sessions over last 7 days">Sessions (Last 7D)</div><div id="tabCwGa4Sessions7d" class="value">-</div></div>
+            <div class="kpi"><div class="name" title="Sessions this month">Sessions (Month)</div><div id="tabCwGa4SessionsMonth" class="value">-</div></div>
+          </div>
+
           <div id="panelAltisMeta" class="kpi-panel">
             <div class="kpi meta-card"><div class="name" title="Meta spend for today">Spend (Today)</div><div id="tabAltisMetaSpendToday" class="value">-</div></div>
             <div class="kpi meta-card"><div class="name" title="Meta spend over last 7 days">Spend (Last 7D)</div><div id="tabAltisMetaSpend7d" class="value">-</div></div>
@@ -1104,6 +1115,15 @@
             <div class="kpi ig-card"><div class="name" title="Plays on best performing reel">Best Reel Plays</div><div id="tabAltisIgBestPlays" class="value">-</div></div>
             <div class="kpi ig-card"><div class="name" title="Reach on best performing reel">Best Reel Reach</div><div id="tabAltisIgBestReach" class="value">-</div></div>
             <div class="kpi ig-card"><div class="name" title="Saves on best performing reel">Best Reel Saves</div><div id="tabAltisIgBestSaves" class="value">-</div></div>
+          </div>
+
+          <div id="panelAltisGa4" class="kpi-panel">
+            <div class="kpi"><div class="name" title="Realtime/current active users">Active Users (Today)</div><div id="tabAltisGa4ActiveToday" class="value">-</div></div>
+            <div class="kpi"><div class="name" title="Active users yesterday">Active Users (Yesterday)</div><div id="tabAltisGa4ActiveYesterday" class="value">-</div></div>
+            <div class="kpi"><div class="name" title="Active users over last 7 days">Active Users (Last 7D)</div><div id="tabAltisGa4Active7d" class="value">-</div></div>
+            <div class="kpi"><div class="name" title="Sessions today">Sessions (Today)</div><div id="tabAltisGa4SessionsToday" class="value">-</div></div>
+            <div class="kpi"><div class="name" title="Sessions over last 7 days">Sessions (Last 7D)</div><div id="tabAltisGa4Sessions7d" class="value">-</div></div>
+            <div class="kpi"><div class="name" title="Sessions this month">Sessions (Month)</div><div id="tabAltisGa4SessionsMonth" class="value">-</div></div>
           </div>
         </div>
 
@@ -1227,12 +1247,16 @@
         kpiIgBestReel: document.getElementById("kpiIgBestReel"),
         tabCoxwellMeta: document.getElementById("tabCoxwellMeta"),
         tabCoxwellIg: document.getElementById("tabCoxwellIg"),
+        tabCoxwellGa4: document.getElementById("tabCoxwellGa4"),
         tabAltisMeta: document.getElementById("tabAltisMeta"),
         tabAltisIg: document.getElementById("tabAltisIg"),
+        tabAltisGa4: document.getElementById("tabAltisGa4"),
         panelCoxwellMeta: document.getElementById("panelCoxwellMeta"),
         panelCoxwellIg: document.getElementById("panelCoxwellIg"),
+        panelCoxwellGa4: document.getElementById("panelCoxwellGa4"),
         panelAltisMeta: document.getElementById("panelAltisMeta"),
         panelAltisIg: document.getElementById("panelAltisIg"),
+        panelAltisGa4: document.getElementById("panelAltisGa4"),
         tabCwMetaSpendToday: document.getElementById("tabCwMetaSpendToday"),
         tabCwMetaSpend7d: document.getElementById("tabCwMetaSpend7d"),
         tabCwMetaLeadsToday: document.getElementById("tabCwMetaLeadsToday"),
@@ -1245,6 +1269,12 @@
         tabCwIgBestPlays: document.getElementById("tabCwIgBestPlays"),
         tabCwIgBestReach: document.getElementById("tabCwIgBestReach"),
         tabCwIgBestSaves: document.getElementById("tabCwIgBestSaves"),
+        tabCwGa4ActiveToday: document.getElementById("tabCwGa4ActiveToday"),
+        tabCwGa4ActiveYesterday: document.getElementById("tabCwGa4ActiveYesterday"),
+        tabCwGa4Active7d: document.getElementById("tabCwGa4Active7d"),
+        tabCwGa4SessionsToday: document.getElementById("tabCwGa4SessionsToday"),
+        tabCwGa4Sessions7d: document.getElementById("tabCwGa4Sessions7d"),
+        tabCwGa4SessionsMonth: document.getElementById("tabCwGa4SessionsMonth"),
         tabAltisMetaSpendToday: document.getElementById("tabAltisMetaSpendToday"),
         tabAltisMetaSpend7d: document.getElementById("tabAltisMetaSpend7d"),
         tabAltisMetaLeadsToday: document.getElementById("tabAltisMetaLeadsToday"),
@@ -1257,6 +1287,12 @@
         tabAltisIgBestPlays: document.getElementById("tabAltisIgBestPlays"),
         tabAltisIgBestReach: document.getElementById("tabAltisIgBestReach"),
         tabAltisIgBestSaves: document.getElementById("tabAltisIgBestSaves"),
+        tabAltisGa4ActiveToday: document.getElementById("tabAltisGa4ActiveToday"),
+        tabAltisGa4ActiveYesterday: document.getElementById("tabAltisGa4ActiveYesterday"),
+        tabAltisGa4Active7d: document.getElementById("tabAltisGa4Active7d"),
+        tabAltisGa4SessionsToday: document.getElementById("tabAltisGa4SessionsToday"),
+        tabAltisGa4Sessions7d: document.getElementById("tabAltisGa4Sessions7d"),
+        tabAltisGa4SessionsMonth: document.getElementById("tabAltisGa4SessionsMonth"),
         statusDot: document.getElementById("statusDot"),
         statusText: document.getElementById("statusText"),
         ga4Badge: document.getElementById("ga4Badge"),
@@ -1326,6 +1362,11 @@
           "Coxwell best reel overall",
           "Coxwell instagram reel reach",
         ],
+        "coxwell-ga4": [
+          "Coxwell ga4 active users today",
+          "Coxwell ga4 sessions today",
+          "Coxwell ga4 sessions this month",
+        ],
         "altis-meta": [
           "Altis meta spend today",
           "Altis meta leads last 7 days",
@@ -1335,6 +1376,11 @@
           "Altis instagram followers",
           "Altis best reel overall",
           "Altis instagram reel reach",
+        ],
+        "altis-ga4": [
+          "Altis ga4 active users today",
+          "Altis ga4 sessions today",
+          "Altis ga4 sessions this month",
         ],
       };
 
@@ -1635,8 +1681,10 @@
         const tabs = [
           ["coxwell-meta", el.tabCoxwellMeta, el.panelCoxwellMeta],
           ["coxwell-ig", el.tabCoxwellIg, el.panelCoxwellIg],
+          ["coxwell-ga4", el.tabCoxwellGa4, el.panelCoxwellGa4],
           ["altis-meta", el.tabAltisMeta, el.panelAltisMeta],
           ["altis-ig", el.tabAltisIg, el.panelAltisIg],
+          ["altis-ga4", el.tabAltisGa4, el.panelAltisGa4],
         ];
         for (const [key, btn, panel] of tabs) {
           if (!btn || !panel) continue;
@@ -1651,8 +1699,10 @@
         const tabNames = {
           "coxwell-meta": "Coxwell Meta Ads overview",
           "coxwell-ig": "Coxwell Instagram overview",
+          "coxwell-ga4": "Coxwell GA4 overview",
           "altis-meta": "Altis Meta Ads overview",
           "altis-ig": "Altis Instagram overview",
+          "altis-ga4": "Altis GA4 overview",
         };
         if (el.tabHint) el.tabHint.textContent = tabNames[tabKey] || "Brand overview";
         renderChips();
@@ -2004,6 +2054,12 @@
         el.tabCwIgBestPlays.textContent = "...";
         el.tabCwIgBestReach.textContent = "...";
         el.tabCwIgBestSaves.textContent = "...";
+        el.tabCwGa4ActiveToday.textContent = "...";
+        el.tabCwGa4ActiveYesterday.textContent = "...";
+        el.tabCwGa4Active7d.textContent = "...";
+        el.tabCwGa4SessionsToday.textContent = "...";
+        el.tabCwGa4Sessions7d.textContent = "...";
+        el.tabCwGa4SessionsMonth.textContent = "...";
         el.tabAltisMetaSpendToday.textContent = "...";
         el.tabAltisMetaSpend7d.textContent = "...";
         el.tabAltisMetaLeadsToday.textContent = "...";
@@ -2016,6 +2072,12 @@
         el.tabAltisIgBestPlays.textContent = "...";
         el.tabAltisIgBestReach.textContent = "...";
         el.tabAltisIgBestSaves.textContent = "...";
+        el.tabAltisGa4ActiveToday.textContent = "...";
+        el.tabAltisGa4ActiveYesterday.textContent = "...";
+        el.tabAltisGa4Active7d.textContent = "...";
+        el.tabAltisGa4SessionsToday.textContent = "...";
+        el.tabAltisGa4Sessions7d.textContent = "...";
+        el.tabAltisGa4SessionsMonth.textContent = "...";
         setKpiCardSubvalue(el.tabAltisIgBestPlays, "");
         setKpiCardSubvalue(el.tabAltisIgBestReach, "");
         setKpiCardSubvalue(el.tabAltisIgBestSaves, "");
@@ -2140,6 +2202,18 @@
           altisMetaBestCampaign,
           altisIgOverview,
           altisIgBestReel,
+          coxwellGa4ActiveToday,
+          coxwellGa4ActiveYesterday,
+          coxwellGa4Active7d,
+          coxwellGa4SessionsToday,
+          coxwellGa4Sessions7d,
+          coxwellGa4SessionsMonth,
+          altisGa4ActiveToday,
+          altisGa4ActiveYesterday,
+          altisGa4Active7d,
+          altisGa4SessionsToday,
+          altisGa4Sessions7d,
+          altisGa4SessionsMonth,
           ga4Debug,
         ] = await Promise.all([
           postJson("/api/tools/run", { tool: "get_meta_leads_today", args: {} }),
@@ -2168,6 +2242,18 @@
           postJson("/api/tools/run", { tool: "get_meta_best_campaign", args: { account_id: brandAccounts.altis } }),
           postJson("/api/tools/run", { tool: "get_instagram_account_overview", args: { account_id: brandAccounts.altis } }),
           postJson("/api/tools/run", { tool: "get_instagram_best_reel", args: { account_id: brandAccounts.altis, period: "maximum" } }),
+          postJson("/api/tools/run", { tool: "get_ga4_active_users_today", args: { account_id: brandAccounts.coxwell } }),
+          postJson("/api/tools/run", { tool: "get_ga4_active_users_yesterday", args: { account_id: brandAccounts.coxwell } }),
+          postJson("/api/tools/run", { tool: "get_ga4_active_users_last_7_days", args: { account_id: brandAccounts.coxwell } }),
+          postJson("/api/tools/run", { tool: "get_ga4_sessions_today", args: { account_id: brandAccounts.coxwell } }),
+          postJson("/api/tools/run", { tool: "get_ga4_sessions_last_7_days", args: { account_id: brandAccounts.coxwell } }),
+          postJson("/api/tools/run", { tool: "get_ga4_sessions_month", args: { account_id: brandAccounts.coxwell } }),
+          postJson("/api/tools/run", { tool: "get_ga4_active_users_today", args: { account_id: brandAccounts.altis } }),
+          postJson("/api/tools/run", { tool: "get_ga4_active_users_yesterday", args: { account_id: brandAccounts.altis } }),
+          postJson("/api/tools/run", { tool: "get_ga4_active_users_last_7_days", args: { account_id: brandAccounts.altis } }),
+          postJson("/api/tools/run", { tool: "get_ga4_sessions_today", args: { account_id: brandAccounts.altis } }),
+          postJson("/api/tools/run", { tool: "get_ga4_sessions_last_7_days", args: { account_id: brandAccounts.altis } }),
+          postJson("/api/tools/run", { tool: "get_ga4_sessions_month", args: { account_id: brandAccounts.altis } }),
           getJson("/api/ga4/debug-tag"),
         ]);
 
@@ -2260,6 +2346,24 @@
         el.tabCwIgBestSaves.textContent = coxwellIgBestReel.ok
           ? String(Number(coxwellIgBestReel.json?.best?.saved ?? 0))
           : "-";
+        el.tabCwGa4ActiveToday.textContent = coxwellGa4ActiveToday.ok
+          ? String(coxwellGa4ActiveToday.json?.active_users ?? "-")
+          : "-";
+        el.tabCwGa4ActiveYesterday.textContent = coxwellGa4ActiveYesterday.ok
+          ? String(coxwellGa4ActiveYesterday.json?.active_users ?? "-")
+          : "-";
+        el.tabCwGa4Active7d.textContent = coxwellGa4Active7d.ok
+          ? String(coxwellGa4Active7d.json?.active_users ?? "-")
+          : "-";
+        el.tabCwGa4SessionsToday.textContent = coxwellGa4SessionsToday.ok
+          ? String(coxwellGa4SessionsToday.json?.sessions ?? "-")
+          : "-";
+        el.tabCwGa4Sessions7d.textContent = coxwellGa4Sessions7d.ok
+          ? String(coxwellGa4Sessions7d.json?.sessions ?? "-")
+          : "-";
+        el.tabCwGa4SessionsMonth.textContent = coxwellGa4SessionsMonth.ok
+          ? String(coxwellGa4SessionsMonth.json?.sessions ?? "-")
+          : "-";
 
         el.tabAltisMetaSpendToday.textContent = altisMetaSpendToday.ok
           ? formatCurrencyINR(altisMetaSpendToday.json?.spend)
@@ -2316,6 +2420,24 @@
           ? String(Number(altisIgBestReel.json?.best?.saved ?? 0))
           : "-";
         setKpiCardSubvalue(el.tabAltisIgBestSaves, formatReelLabel(altisBestBySaves || altisIgBestReel.json?.best));
+        el.tabAltisGa4ActiveToday.textContent = altisGa4ActiveToday.ok
+          ? String(altisGa4ActiveToday.json?.active_users ?? "-")
+          : "-";
+        el.tabAltisGa4ActiveYesterday.textContent = altisGa4ActiveYesterday.ok
+          ? String(altisGa4ActiveYesterday.json?.active_users ?? "-")
+          : "-";
+        el.tabAltisGa4Active7d.textContent = altisGa4Active7d.ok
+          ? String(altisGa4Active7d.json?.active_users ?? "-")
+          : "-";
+        el.tabAltisGa4SessionsToday.textContent = altisGa4SessionsToday.ok
+          ? String(altisGa4SessionsToday.json?.sessions ?? "-")
+          : "-";
+        el.tabAltisGa4Sessions7d.textContent = altisGa4Sessions7d.ok
+          ? String(altisGa4Sessions7d.json?.sessions ?? "-")
+          : "-";
+        el.tabAltisGa4SessionsMonth.textContent = altisGa4SessionsMonth.ok
+          ? String(altisGa4SessionsMonth.json?.sessions ?? "-")
+          : "-";
 
         const alertMessages = [];
         const coxwellIgDiag = buildInstagramDiagnostic(
@@ -2764,8 +2886,10 @@
       el.chat.addEventListener("scroll", updateScrollTopVisibility);
       el.tabCoxwellMeta.onclick = () => setActiveKpiTab("coxwell-meta");
       el.tabCoxwellIg.onclick = () => setActiveKpiTab("coxwell-ig");
+      el.tabCoxwellGa4.onclick = () => setActiveKpiTab("coxwell-ga4");
       el.tabAltisMeta.onclick = () => setActiveKpiTab("altis-meta");
       el.tabAltisIg.onclick = () => setActiveKpiTab("altis-ig");
+      el.tabAltisGa4.onclick = () => setActiveKpiTab("altis-ga4");
       if (el.refreshKpi) el.refreshKpi.onclick = fetchLiveKpis;
       if (el.toggleCompact) el.toggleCompact.onclick = () => {
         compactMode = !compactMode;
