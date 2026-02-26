@@ -90,6 +90,17 @@ export type Ga4Base = {
   as_of_ist: string;
 };
 
+function rangeForPeriod(period: "today" | "yesterday" | "last_7_days" | "last_15_days" | "last_30_days"): {
+  startDate: string;
+  endDate: string;
+} {
+  if (period === "today") return { startDate: "today", endDate: "today" };
+  if (period === "yesterday") return { startDate: "yesterday", endDate: "yesterday" };
+  if (period === "last_7_days") return { startDate: "7daysAgo", endDate: "today" };
+  if (period === "last_15_days") return { startDate: "15daysAgo", endDate: "today" };
+  return { startDate: "30daysAgo", endDate: "today" };
+}
+
 export async function verifyGa4Setup(): Promise<{
   ok: boolean;
   property: string;
@@ -605,5 +616,102 @@ export async function getGa4TopPagesToday(limit = 10, accountId?: string): Promi
     timezone: getTimezone(),
     as_of_ist: nowIso(),
     rows,
+  };
+}
+
+export async function getGa4PageViewsByPeriod(
+  period: "today" | "yesterday" | "last_7_days" | "last_15_days" | "last_30_days",
+  accountId?: string
+): Promise<
+  Ga4Base & {
+    tool:
+      | "get_ga4_page_views_today"
+      | "get_ga4_page_views_yesterday"
+      | "get_ga4_page_views_last_7_days"
+      | "get_ga4_page_views_last_15_days"
+      | "get_ga4_page_views_last_30_days";
+    page_views: number;
+  }
+> {
+  if (!isGa4Enabled()) throw new Error("ENABLE_GA4_API=false");
+
+  const client = getClient();
+  const { startDate, endDate } = rangeForPeriod(period);
+  const [resp] = await client.runReport({
+    property: getProperty(accountId),
+    dateRanges: [{ startDate, endDate }],
+    metrics: [{ name: "screenPageViews" }],
+  });
+
+  const pageViews = Number(resp.rows?.[0]?.metricValues?.[0]?.value || 0) || 0;
+  const tool =
+    period === "today"
+      ? "get_ga4_page_views_today"
+      : period === "yesterday"
+      ? "get_ga4_page_views_yesterday"
+      : period === "last_7_days"
+      ? "get_ga4_page_views_last_7_days"
+      : period === "last_15_days"
+      ? "get_ga4_page_views_last_15_days"
+      : "get_ga4_page_views_last_30_days";
+
+  return {
+    ok: true,
+    tool,
+    timezone: getTimezone(),
+    as_of_ist: nowIso(),
+    page_views: pageViews,
+  };
+}
+
+export async function getGa4TopCityByPeriod(
+  period: "today" | "yesterday" | "last_7_days" | "last_15_days" | "last_30_days",
+  accountId?: string
+): Promise<
+  Ga4Base & {
+    tool:
+      | "get_ga4_top_city_today"
+      | "get_ga4_top_city_yesterday"
+      | "get_ga4_top_city_last_7_days"
+      | "get_ga4_top_city_last_15_days"
+      | "get_ga4_top_city_last_30_days";
+    city: string;
+    sessions: number;
+  }
+> {
+  if (!isGa4Enabled()) throw new Error("ENABLE_GA4_API=false");
+
+  const client = getClient();
+  const { startDate, endDate } = rangeForPeriod(period);
+  const [resp] = await client.runReport({
+    property: getProperty(accountId),
+    dateRanges: [{ startDate, endDate }],
+    dimensions: [{ name: "city" }],
+    metrics: [{ name: "sessions" }],
+    orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
+    limit: 1,
+  });
+
+  const first = Array.isArray(resp.rows) && resp.rows.length ? resp.rows[0] : null;
+  const city = String(first?.dimensionValues?.[0]?.value || "").trim() || "-";
+  const sessions = Number(first?.metricValues?.[0]?.value || 0) || 0;
+  const tool =
+    period === "today"
+      ? "get_ga4_top_city_today"
+      : period === "yesterday"
+      ? "get_ga4_top_city_yesterday"
+      : period === "last_7_days"
+      ? "get_ga4_top_city_last_7_days"
+      : period === "last_15_days"
+      ? "get_ga4_top_city_last_15_days"
+      : "get_ga4_top_city_last_30_days";
+
+  return {
+    ok: true,
+    tool,
+    timezone: getTimezone(),
+    as_of_ist: nowIso(),
+    city,
+    sessions,
   };
 }

@@ -28,6 +28,8 @@ import {
   getGa4SessionsLast30Days,
   getGa4SessionsMonth,
   getGa4TopPagesToday,
+  getGa4PageViewsByPeriod,
+  getGa4TopCityByPeriod,
 } from "./ga4Api";
 
 type AnyJson = Record<string, any>;
@@ -430,6 +432,31 @@ function makeLocalMock(toolName: string, args: AnyJson = {}, reason = "Fallback 
     };
   }
 
+  if (toolName.startsWith("get_ga4_page_views_")) {
+    return {
+      ok: true,
+      tool: toolName,
+      timezone: process.env.GA4_TIMEZONE || "Asia/Kolkata",
+      as_of_ist: asOf,
+      page_views: stableNumber(`${toolName}|${today}`, 400, 45000),
+      _mock: { used: true, reason },
+    };
+  }
+
+  if (toolName.startsWith("get_ga4_top_city_")) {
+    const cities = ["Mumbai", "Delhi", "Bengaluru", "Chennai", "Pune", "Hyderabad"];
+    const idx = stableNumber(`${toolName}|city|${today}`, 0, cities.length - 1);
+    return {
+      ok: true,
+      tool: toolName,
+      timezone: process.env.GA4_TIMEZONE || "Asia/Kolkata",
+      as_of_ist: asOf,
+      city: cities[idx],
+      sessions: stableNumber(`${toolName}|sessions|${today}`, 20, 2000),
+      _mock: { used: true, reason },
+    };
+  }
+
   return null;
 }
 
@@ -746,6 +773,96 @@ export const toolDefs: ToolDef[] = [
     handler: async (args) =>
       callToolWithFallback("get_ga4_top_pages_today", args, () =>
         getGa4TopPagesToday(args?.limit ?? 10, args?.account_id)
+      ),
+  },
+  {
+    name: "get_ga4_page_views_today",
+    description: "Returns GA4 total page views for today.",
+    inputSchema: { type: "object", properties: { account_id: { type: "string" } }, additionalProperties: false },
+    handler: async (args) =>
+      callToolWithFallback("get_ga4_page_views_today", args || {}, () =>
+        getGa4PageViewsByPeriod("today", args?.account_id)
+      ),
+  },
+  {
+    name: "get_ga4_page_views_yesterday",
+    description: "Returns GA4 total page views for yesterday.",
+    inputSchema: { type: "object", properties: { account_id: { type: "string" } }, additionalProperties: false },
+    handler: async (args) =>
+      callToolWithFallback("get_ga4_page_views_yesterday", args || {}, () =>
+        getGa4PageViewsByPeriod("yesterday", args?.account_id)
+      ),
+  },
+  {
+    name: "get_ga4_page_views_last_7_days",
+    description: "Returns GA4 total page views for last 7 days.",
+    inputSchema: { type: "object", properties: { account_id: { type: "string" } }, additionalProperties: false },
+    handler: async (args) =>
+      callToolWithFallback("get_ga4_page_views_last_7_days", args || {}, () =>
+        getGa4PageViewsByPeriod("last_7_days", args?.account_id)
+      ),
+  },
+  {
+    name: "get_ga4_page_views_last_15_days",
+    description: "Returns GA4 total page views for last 15 days.",
+    inputSchema: { type: "object", properties: { account_id: { type: "string" } }, additionalProperties: false },
+    handler: async (args) =>
+      callToolWithFallback("get_ga4_page_views_last_15_days", args || {}, () =>
+        getGa4PageViewsByPeriod("last_15_days", args?.account_id)
+      ),
+  },
+  {
+    name: "get_ga4_page_views_last_30_days",
+    description: "Returns GA4 total page views for last 30 days.",
+    inputSchema: { type: "object", properties: { account_id: { type: "string" } }, additionalProperties: false },
+    handler: async (args) =>
+      callToolWithFallback("get_ga4_page_views_last_30_days", args || {}, () =>
+        getGa4PageViewsByPeriod("last_30_days", args?.account_id)
+      ),
+  },
+  {
+    name: "get_ga4_top_city_today",
+    description: "Returns top city by sessions for today.",
+    inputSchema: { type: "object", properties: { account_id: { type: "string" } }, additionalProperties: false },
+    handler: async (args) =>
+      callToolWithFallback("get_ga4_top_city_today", args || {}, () =>
+        getGa4TopCityByPeriod("today", args?.account_id)
+      ),
+  },
+  {
+    name: "get_ga4_top_city_yesterday",
+    description: "Returns top city by sessions for yesterday.",
+    inputSchema: { type: "object", properties: { account_id: { type: "string" } }, additionalProperties: false },
+    handler: async (args) =>
+      callToolWithFallback("get_ga4_top_city_yesterday", args || {}, () =>
+        getGa4TopCityByPeriod("yesterday", args?.account_id)
+      ),
+  },
+  {
+    name: "get_ga4_top_city_last_7_days",
+    description: "Returns top city by sessions for last 7 days.",
+    inputSchema: { type: "object", properties: { account_id: { type: "string" } }, additionalProperties: false },
+    handler: async (args) =>
+      callToolWithFallback("get_ga4_top_city_last_7_days", args || {}, () =>
+        getGa4TopCityByPeriod("last_7_days", args?.account_id)
+      ),
+  },
+  {
+    name: "get_ga4_top_city_last_15_days",
+    description: "Returns top city by sessions for last 15 days.",
+    inputSchema: { type: "object", properties: { account_id: { type: "string" } }, additionalProperties: false },
+    handler: async (args) =>
+      callToolWithFallback("get_ga4_top_city_last_15_days", args || {}, () =>
+        getGa4TopCityByPeriod("last_15_days", args?.account_id)
+      ),
+  },
+  {
+    name: "get_ga4_top_city_last_30_days",
+    description: "Returns top city by sessions for last 30 days.",
+    inputSchema: { type: "object", properties: { account_id: { type: "string" } }, additionalProperties: false },
+    handler: async (args) =>
+      callToolWithFallback("get_ga4_top_city_last_30_days", args || {}, () =>
+        getGa4TopCityByPeriod("last_30_days", args?.account_id)
       ),
   },
 ];
