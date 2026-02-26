@@ -1924,6 +1924,25 @@
         }
       }
 
+      function shortErrorText(resp) {
+        if (resp?.ok) return "";
+        const msg =
+          resp?.json?.primary_error ||
+          resp?.json?.error ||
+          resp?.raw ||
+          "Unknown error";
+        const clean = String(msg).replace(/\s+/g, " ").trim();
+        return clean.length > 180 ? clean.slice(0, 180) + "..." : clean;
+      }
+
+      function buildInstagramDiagnostic(brandLabel, accountId, overviewResp, bestReelResp) {
+        const issues = [];
+        if (!overviewResp?.ok) issues.push(`overview failed: ${shortErrorText(overviewResp)}`);
+        if (!bestReelResp?.ok) issues.push(`best reel failed: ${shortErrorText(bestReelResp)}`);
+        if (!issues.length) return "";
+        return `Instagram ${brandLabel} (${accountId || "account not set"}): ${issues.join(" | ")}`;
+      }
+
       function setKpiLoading() {
         el.kpiLeads.textContent = "...";
         el.kpiLeads30d.textContent = "...";
@@ -2243,8 +2262,20 @@
           : "-";
 
         const alertMessages = [];
-        if (!coxwellIgOverview.ok || !altisIgOverview.ok) alertMessages.push("Instagram profile config missing for one or more brands.");
-        if (!coxwellIgBestReel.ok || !altisIgBestReel.ok) alertMessages.push("Best reel data unavailable; check IG permissions/token.");
+        const coxwellIgDiag = buildInstagramDiagnostic(
+          "Coxwell",
+          brandAccounts.coxwell,
+          coxwellIgOverview,
+          coxwellIgBestReel
+        );
+        const altisIgDiag = buildInstagramDiagnostic(
+          "Altis",
+          brandAccounts.altis,
+          altisIgOverview,
+          altisIgBestReel
+        );
+        if (coxwellIgDiag) alertMessages.push(coxwellIgDiag);
+        if (altisIgDiag) alertMessages.push(altisIgDiag);
         if (ga4Debug.ok && Number(ga4Debug.json?.metrics?.today_sessions || 0) === 0) {
           alertMessages.push("GA4 connected but no sessions today.");
         }

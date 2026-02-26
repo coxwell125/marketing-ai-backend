@@ -34,6 +34,21 @@ function parseStringMapEnv(name: string): Record<string, string> {
   }
 }
 
+function normalizeMetaAccountIdForLookup(raw: string): string {
+  const v = String(raw || "").trim();
+  if (!v) return "";
+  return v.startsWith("act_") ? v : `act_${v}`;
+}
+
+function accountMapLookup(map: Record<string, string>, accountId?: string): string {
+  if (!accountId) return "";
+  const raw = String(accountId || "").trim();
+  if (!raw) return "";
+  const normalized = normalizeMetaAccountIdForLookup(raw);
+  const stripped = normalized.startsWith("act_") ? normalized.slice(4) : normalized;
+  return map[raw] || map[normalized] || map[stripped] || "";
+}
+
 function getMetaEnv(accountId?: string): MetaEnv {
   const resolvedAccount = resolveMetaAccountId(accountId);
   const parsed = MetaEnvSchema.safeParse({
@@ -51,7 +66,7 @@ function getMetaEnv(accountId?: string): MetaEnv {
 
 function getInstagramEnv(accountId?: string): InstagramEnv {
   const tokenMap = parseStringMapEnv("IG_ACCESS_TOKEN_MAP");
-  const mappedToken = accountId ? tokenMap[accountId] : "";
+  const mappedToken = accountMapLookup(tokenMap, accountId);
   const parsed = InstagramEnvSchema.safeParse({
     // Prefer dedicated IG token; fallback to META token for backward compatibility.
     IG_ACCESS_TOKEN: mappedToken || process.env.IG_ACCESS_TOKEN || process.env.META_ACCESS_TOKEN,
@@ -208,7 +223,7 @@ function todayDatePresetForIST(): { since: string; until: string } {
 
 function getInstagramBusinessAccountId(accountId?: string): string {
   const idMap = parseStringMapEnv("IG_BUSINESS_ACCOUNT_ID_MAP");
-  const mappedId = accountId ? idMap[accountId] : "";
+  const mappedId = accountMapLookup(idMap, accountId);
   const id = String(mappedId || process.env.IG_BUSINESS_ACCOUNT_ID || "").trim();
   if (!id) throw new Error("IG_BUSINESS_ACCOUNT_ID not set");
   return id;
@@ -244,10 +259,17 @@ type IgReelRow = {
 };
 
 async function fetchIgMediaBaseRows(env: InstagramEnv, accountId?: string): Promise<
-  Array<{ id: string; caption: string; permalink: string; media_type: string; timestamp: string }>
+  Array<{
+    id: string;
+    caption: string;
+    permalink: string;
+    media_type: string;
+    media_product_type: string;
+    timestamp: string;
+  }>
 > {
   const igId = getInstagramBusinessAccountId(accountId);
-  const fields = ["id", "caption", "permalink", "media_type", "timestamp"].join(",");
+  const fields = ["id", "caption", "permalink", "media_type", "media_product_type", "timestamp"].join(",");
   const params = encodeParams({
     access_token: env.IG_ACCESS_TOKEN,
     fields,
@@ -262,9 +284,16 @@ async function fetchIgMediaBaseRows(env: InstagramEnv, accountId?: string): Prom
       caption: String(r?.caption || ""),
       permalink: String(r?.permalink || ""),
       media_type: String(r?.media_type || ""),
+      media_product_type: String(r?.media_product_type || ""),
       timestamp: String(r?.timestamp || ""),
     }))
-    .filter((r: any) => r.id && r.media_type === "REEL");
+    .filter((r: any) => {
+      if (!r.id) return false;
+      const mediaType = String(r.media_type || "").toUpperCase();
+      const productType = String(r.media_product_type || "").toUpperCase();
+      // Reels can be represented as REEL or as VIDEO with media_product_type=REELS.
+      return mediaType === "REEL" || productType === "REELS";
+    });
 }
 
 async function fetchIgReelInsights(env: InstagramEnv, mediaId: string): Promise<{
@@ -275,15 +304,27 @@ async function fetchIgReelInsights(env: InstagramEnv, mediaId: string): Promise<
   comments: number;
   shares: number;
 }> {
-  // Metric availability varies by account/version; request broad set and parse what is returned.
-  const metrics = "plays,reach,saved,likes,comments,shares,total_interactions";
-  const params = encodeParams({
-    access_token: env.IG_ACCESS_TOKEN,
-    metric: metrics,
-  });
-  const url = `https://graph.facebook.com/${env.META_API_VERSION}/${mediaId}/insights?${params}`;
-  const data = await metaFetchJson(url);
-  const rows = Array.isArray(data?.data) ? data.data : [];
+  // Metric availability varies by API version/account.
+  // v22+ may reject `plays` for reels; fallback to `views`.
+  const rows = await (async () => {
+    const tryFetch = async (metrics: string) => {
+      const params = encodeParams({
+        access_token: env.IG_ACCESS_TOKEN,
+        metric: metrics,
+      });
+      const url = `https://graph.facebook.com/${env.META_API_VERSION}/${mediaId}/insights?${params}`;
+      const data = await metaFetchJson(url);
+      return Array.isArray(data?.data) ? data.data : [];
+    };
+
+    try {
+      return await tryFetch("plays,reach,saved,likes,comments,shares,total_interactions");
+    } catch (err: any) {
+      const msg = String(err?.message || "");
+      if (!/plays metric is no longer supported|no longer supported/i.test(msg)) throw err;
+      return tryFetch("views,reach,saved,likes,comments,shares,total_interactions");
+    }
+  })();
 
   const out = {
     plays: 0,
@@ -298,6 +339,7 @@ async function fetchIgReelInsights(env: InstagramEnv, mediaId: string): Promise<
     const name = String(r?.name || "");
     const value = parseNumberLoose(r?.values?.[0]?.value ?? r?.value);
     if (name === "plays") out.plays = value;
+    else if (name === "views") out.plays = value;
     else if (name === "reach") out.reach = value;
     else if (name === "saved") out.saved = value;
     else if (name === "likes") out.likes = value;
