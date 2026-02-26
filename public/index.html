@@ -315,6 +315,19 @@
         grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 10px;
       }
+      .kpi-panel-controls {
+        grid-column: 1 / -1;
+        display: flex;
+        justify-content: flex-end;
+      }
+      .kpi-period-select {
+        background: #0f1b32;
+        color: #dbe6ff;
+        border: 1px solid var(--line-soft);
+        border-radius: 8px;
+        padding: 6px 10px;
+        font-size: 12px;
+      }
       .kpi-panel.active {
         display: grid;
       }
@@ -1099,6 +1112,15 @@
           </div>
 
           <div id="panelCoxwellGa4" class="kpi-panel">
+            <div class="kpi-panel-controls">
+              <select id="cwGa4PeriodSelect" class="kpi-period-select" aria-label="Coxwell GA4 Period">
+                <option value="today">Today</option>
+                <option value="yesterday">Yesterday</option>
+                <option value="last_7_days">Last 7 days</option>
+                <option value="last_15_days">Last 15 days</option>
+                <option value="last_30_days">Last 30 days</option>
+              </select>
+            </div>
             <div class="kpi"><div class="name">Active users</div><div id="tabCwGa4SnapActiveUsers" class="value">-</div></div>
             <div class="kpi"><div class="name">New users</div><div id="tabCwGa4SnapNewUsers" class="value">-</div></div>
             <div class="kpi"><div class="name">Average engagement time</div><div id="tabCwGa4SnapAvgEngagement" class="value">-</div></div>
@@ -1127,6 +1149,15 @@
           </div>
 
           <div id="panelAltisGa4" class="kpi-panel">
+            <div class="kpi-panel-controls">
+              <select id="altisGa4PeriodSelect" class="kpi-period-select" aria-label="Altis GA4 Period">
+                <option value="today">Today</option>
+                <option value="yesterday">Yesterday</option>
+                <option value="last_7_days">Last 7 days</option>
+                <option value="last_15_days">Last 15 days</option>
+                <option value="last_30_days">Last 30 days</option>
+              </select>
+            </div>
             <div class="kpi"><div class="name">Active users</div><div id="tabAltisGa4SnapActiveUsers" class="value">-</div></div>
             <div class="kpi"><div class="name">New users</div><div id="tabAltisGa4SnapNewUsers" class="value">-</div></div>
             <div class="kpi"><div class="name">Average engagement time</div><div id="tabAltisGa4SnapAvgEngagement" class="value">-</div></div>
@@ -1348,6 +1379,7 @@
         tabCwGa4CityTable: document.getElementById("tabCwGa4CityTable"),
         tabCwGa4SourceTable: document.getElementById("tabCwGa4SourceTable"),
         tabCwGa4PagesTable: document.getElementById("tabCwGa4PagesTable"),
+        cwGa4PeriodSelect: document.getElementById("cwGa4PeriodSelect"),
         tabAltisGa4SnapActiveUsers: document.getElementById("tabAltisGa4SnapActiveUsers"),
         tabAltisGa4SnapNewUsers: document.getElementById("tabAltisGa4SnapNewUsers"),
         tabAltisGa4SnapAvgEngagement: document.getElementById("tabAltisGa4SnapAvgEngagement"),
@@ -1355,6 +1387,7 @@
         tabAltisGa4CityTable: document.getElementById("tabAltisGa4CityTable"),
         tabAltisGa4SourceTable: document.getElementById("tabAltisGa4SourceTable"),
         tabAltisGa4PagesTable: document.getElementById("tabAltisGa4PagesTable"),
+        altisGa4PeriodSelect: document.getElementById("altisGa4PeriodSelect"),
         statusDot: document.getElementById("statusDot"),
         statusText: document.getElementById("statusText"),
         ga4Badge: document.getElementById("ga4Badge"),
@@ -1412,7 +1445,14 @@
       let metaAccounts = [];
       let activeKpiTab = localStorage.getItem("mai-kpi-tab") || "coxwell-meta";
       let compactMode = localStorage.getItem("mai-compact") === "1";
+      const GA4_PERIODS = new Set(["today", "yesterday", "last_7_days", "last_15_days", "last_30_days"]);
+      let coxwellGa4Period = localStorage.getItem("mai-ga4-period-coxwell") || "last_30_days";
+      let altisGa4Period = localStorage.getItem("mai-ga4-period-altis") || "last_30_days";
       const kpiPrevValue = new Map();
+      coxwellGa4Period = sanitizeGa4Period(coxwellGa4Period);
+      altisGa4Period = sanitizeGa4Period(altisGa4Period);
+      if (el.cwGa4PeriodSelect) el.cwGa4PeriodSelect.value = coxwellGa4Period;
+      if (el.altisGa4PeriodSelect) el.altisGa4PeriodSelect.value = altisGa4Period;
       const TAB_QUERIES = {
         "coxwell-meta": [
           "Coxwell meta spend today",
@@ -1448,6 +1488,9 @@
 
       function uid() {
         return `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+      }
+      function sanitizeGa4Period(value) {
+        return GA4_PERIODS.has(value) ? value : "last_30_days";
       }
       function nowIso() {
         return new Date().toISOString();
@@ -2430,14 +2473,14 @@
           postJson("/api/tools/run", { tool: "get_ga4_top_city_last_7_days", args: { account_id: brandAccounts.altis } }),
           postJson("/api/tools/run", { tool: "get_ga4_top_city_last_15_days", args: { account_id: brandAccounts.altis } }),
           postJson("/api/tools/run", { tool: "get_ga4_top_city_last_30_days", args: { account_id: brandAccounts.altis } }),
-          postJson("/api/tools/run", { tool: "get_ga4_report_snapshot", args: { account_id: brandAccounts.coxwell, period: "last_30_days" } }),
-          postJson("/api/tools/run", { tool: "get_ga4_active_users_by_city", args: { account_id: brandAccounts.coxwell, period: "last_30_days", limit: 7 } }),
-          postJson("/api/tools/run", { tool: "get_ga4_sessions_by_source_medium", args: { account_id: brandAccounts.coxwell, period: "last_30_days", limit: 7 } }),
-          postJson("/api/tools/run", { tool: "get_ga4_top_pages_screens", args: { account_id: brandAccounts.coxwell, period: "last_30_days", limit: 7 } }),
-          postJson("/api/tools/run", { tool: "get_ga4_report_snapshot", args: { account_id: brandAccounts.altis, period: "last_30_days" } }),
-          postJson("/api/tools/run", { tool: "get_ga4_active_users_by_city", args: { account_id: brandAccounts.altis, period: "last_30_days", limit: 7 } }),
-          postJson("/api/tools/run", { tool: "get_ga4_sessions_by_source_medium", args: { account_id: brandAccounts.altis, period: "last_30_days", limit: 7 } }),
-          postJson("/api/tools/run", { tool: "get_ga4_top_pages_screens", args: { account_id: brandAccounts.altis, period: "last_30_days", limit: 7 } }),
+          postJson("/api/tools/run", { tool: "get_ga4_report_snapshot", args: { account_id: brandAccounts.coxwell, period: coxwellGa4Period } }),
+          postJson("/api/tools/run", { tool: "get_ga4_active_users_by_city", args: { account_id: brandAccounts.coxwell, period: coxwellGa4Period, limit: 7 } }),
+          postJson("/api/tools/run", { tool: "get_ga4_sessions_by_source_medium", args: { account_id: brandAccounts.coxwell, period: coxwellGa4Period, limit: 7 } }),
+          postJson("/api/tools/run", { tool: "get_ga4_top_pages_screens", args: { account_id: brandAccounts.coxwell, period: coxwellGa4Period, limit: 7 } }),
+          postJson("/api/tools/run", { tool: "get_ga4_report_snapshot", args: { account_id: brandAccounts.altis, period: altisGa4Period } }),
+          postJson("/api/tools/run", { tool: "get_ga4_active_users_by_city", args: { account_id: brandAccounts.altis, period: altisGa4Period, limit: 7 } }),
+          postJson("/api/tools/run", { tool: "get_ga4_sessions_by_source_medium", args: { account_id: brandAccounts.altis, period: altisGa4Period, limit: 7 } }),
+          postJson("/api/tools/run", { tool: "get_ga4_top_pages_screens", args: { account_id: brandAccounts.altis, period: altisGa4Period, limit: 7 } }),
           getJson("/api/ga4/debug-tag"),
         ]);
 
@@ -3194,6 +3237,20 @@
         localStorage.setItem("meta-account-id", (el.metaAccount.value || "").trim());
         fetchLiveKpis();
       };
+      if (el.cwGa4PeriodSelect) {
+        el.cwGa4PeriodSelect.onchange = () => {
+          coxwellGa4Period = sanitizeGa4Period(el.cwGa4PeriodSelect.value);
+          localStorage.setItem("mai-ga4-period-coxwell", coxwellGa4Period);
+          fetchLiveKpis();
+        };
+      }
+      if (el.altisGa4PeriodSelect) {
+        el.altisGa4PeriodSelect.onchange = () => {
+          altisGa4Period = sanitizeGa4Period(el.altisGa4PeriodSelect.value);
+          localStorage.setItem("mai-ga4-period-altis", altisGa4Period);
+          fetchLiveKpis();
+        };
+      }
       el.export.onclick = exportConversation;
       el.search.oninput = renderConversationList;
       document.addEventListener("click", () => {
