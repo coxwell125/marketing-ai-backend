@@ -379,6 +379,14 @@
         font-size: 17px;
         font-weight: 700;
       }
+      .kpi .value.mini-list {
+        font-size: 12px;
+        font-weight: 600;
+        line-height: 1.45;
+        white-space: pre-line;
+        max-height: 220px;
+        overflow: auto;
+      }
       .kpi .subvalue {
         margin-top: 3px;
         font-size: 11px;
@@ -1091,26 +1099,13 @@
           </div>
 
           <div id="panelCoxwellGa4" class="kpi-panel">
-            <div class="kpi"><div class="name" title="Realtime/current active users">Users (Today)</div><div id="tabCwGa4ActiveToday" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Active users yesterday">Users (Yesterday)</div><div id="tabCwGa4ActiveYesterday" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Active users over last 7 days">Users (7 Days)</div><div id="tabCwGa4Active7d" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Active users over last 15 days">Users (15 Days)</div><div id="tabCwGa4Active15d" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Active users over last 30 days">Users (30 Days)</div><div id="tabCwGa4Active30d" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Sessions today">Today's Session (Today)</div><div id="tabCwGa4SessionsToday" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Sessions yesterday">Today's Session (Yesterday)</div><div id="tabCwGa4SessionsYesterday" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Sessions over last 7 days">Today's Session (7 Days)</div><div id="tabCwGa4Sessions7d" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Sessions over last 15 days">Today's Session (15 Days)</div><div id="tabCwGa4Sessions15d" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Sessions over last 30 days">Today's Session (30 Days)</div><div id="tabCwGa4Sessions30d" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Page views today">Visit in Page (Today)</div><div id="tabCwGa4ViewsToday" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Page views yesterday">Visit in Page (Yesterday)</div><div id="tabCwGa4ViewsYesterday" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Page views in last 7 days">Visit in Page (7 Days)</div><div id="tabCwGa4Views7d" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Page views in last 15 days">Visit in Page (15 Days)</div><div id="tabCwGa4Views15d" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Page views in last 30 days">Visit in Page (30 Days)</div><div id="tabCwGa4Views30d" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Top city by sessions today">Top City (Today)</div><div id="tabCwGa4CityToday" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Top city by sessions yesterday">Top City (Yesterday)</div><div id="tabCwGa4CityYesterday" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Top city by sessions in last 7 days">Top City (7 Days)</div><div id="tabCwGa4City7d" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Top city by sessions in last 15 days">Top City (15 Days)</div><div id="tabCwGa4City15d" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Top city by sessions in last 30 days">Top City (30 Days)</div><div id="tabCwGa4City30d" class="value">-</div></div>
+            <div class="kpi"><div class="name">Active users</div><div id="tabCwGa4SnapActiveUsers" class="value">-</div></div>
+            <div class="kpi"><div class="name">New users</div><div id="tabCwGa4SnapNewUsers" class="value">-</div></div>
+            <div class="kpi"><div class="name">Average engagement time</div><div id="tabCwGa4SnapAvgEngagement" class="value">-</div></div>
+            <div class="kpi"><div class="name">Event count</div><div id="tabCwGa4SnapEventCount" class="value">-</div></div>
+            <div class="kpi"><div class="name">Active users by City</div><div id="tabCwGa4CityTable" class="value mini-list">-</div></div>
+            <div class="kpi"><div class="name">Sessions by Session source / medium</div><div id="tabCwGa4SourceTable" class="value mini-list">-</div></div>
+            <div class="kpi"><div class="name">Top pages/screens</div><div id="tabCwGa4PagesTable" class="value mini-list">-</div></div>
           </div>
 
           <div id="panelAltisMeta" class="kpi-panel">
@@ -1132,26 +1127,23 @@
           </div>
 
           <div id="panelAltisGa4" class="kpi-panel">
-            <div class="kpi"><div class="name" title="Realtime/current active users">Users (Today)</div><div id="tabAltisGa4ActiveToday" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Active users yesterday">Users (Yesterday)</div><div id="tabAltisGa4ActiveYesterday" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Active users over last 7 days">Users (7 Days)</div><div id="tabAltisGa4Active7d" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Active users over last 15 days">Users (15 Days)</div><div id="tabAltisGa4Active15d" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Active users over last 30 days">Users (30 Days)</div><div id="tabAltisGa4Active30d" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Sessions today">Today's Session (Today)</div><div id="tabAltisGa4SessionsToday" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Sessions yesterday">Today's Session (Yesterday)</div><div id="tabAltisGa4SessionsYesterday" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Sessions over last 7 days">Today's Session (7 Days)</div><div id="tabAltisGa4Sessions7d" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Sessions over last 15 days">Today's Session (15 Days)</div><div id="tabAltisGa4Sessions15d" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Sessions over last 30 days">Today's Session (30 Days)</div><div id="tabAltisGa4Sessions30d" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Page views today">Visit in Page (Today)</div><div id="tabAltisGa4ViewsToday" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Page views yesterday">Visit in Page (Yesterday)</div><div id="tabAltisGa4ViewsYesterday" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Page views in last 7 days">Visit in Page (7 Days)</div><div id="tabAltisGa4Views7d" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Page views in last 15 days">Visit in Page (15 Days)</div><div id="tabAltisGa4Views15d" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Page views in last 30 days">Visit in Page (30 Days)</div><div id="tabAltisGa4Views30d" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Top city by sessions today">Top City (Today)</div><div id="tabAltisGa4CityToday" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Top city by sessions yesterday">Top City (Yesterday)</div><div id="tabAltisGa4CityYesterday" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Top city by sessions in last 7 days">Top City (7 Days)</div><div id="tabAltisGa4City7d" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Top city by sessions in last 15 days">Top City (15 Days)</div><div id="tabAltisGa4City15d" class="value">-</div></div>
-            <div class="kpi"><div class="name" title="Top city by sessions in last 30 days">Top City (30 Days)</div><div id="tabAltisGa4City30d" class="value">-</div></div>
+            <div class="kpi"><div class="name">Active users</div><div id="tabAltisGa4SnapActiveUsers" class="value">-</div></div>
+            <div class="kpi"><div class="name">New users</div><div id="tabAltisGa4SnapNewUsers" class="value">-</div></div>
+            <div class="kpi"><div class="name">Average engagement time</div><div id="tabAltisGa4SnapAvgEngagement" class="value">-</div></div>
+            <div class="kpi"><div class="name">Event count</div><div id="tabAltisGa4SnapEventCount" class="value">-</div></div>
+            <div class="kpi"><div class="name">Active users by City</div><div id="tabAltisGa4CityTable" class="value mini-list">-</div></div>
+            <div class="kpi"><div class="name">Sessions by Session source / medium</div><div id="tabAltisGa4SourceTable" class="value mini-list">-</div></div>
+            <div class="kpi"><div class="name">Top pages/screens</div><div id="tabAltisGa4PagesTable" class="value mini-list">-</div></div>
+          </div>
+          <div style="display:none">
+            <span id="tabCwGa4ActiveToday"></span><span id="tabCwGa4ActiveYesterday"></span><span id="tabCwGa4Active7d"></span><span id="tabCwGa4Active15d"></span><span id="tabCwGa4Active30d"></span>
+            <span id="tabCwGa4SessionsToday"></span><span id="tabCwGa4SessionsYesterday"></span><span id="tabCwGa4Sessions7d"></span><span id="tabCwGa4Sessions15d"></span><span id="tabCwGa4Sessions30d"></span>
+            <span id="tabCwGa4ViewsToday"></span><span id="tabCwGa4ViewsYesterday"></span><span id="tabCwGa4Views7d"></span><span id="tabCwGa4Views15d"></span><span id="tabCwGa4Views30d"></span>
+            <span id="tabCwGa4CityToday"></span><span id="tabCwGa4CityYesterday"></span><span id="tabCwGa4City7d"></span><span id="tabCwGa4City15d"></span><span id="tabCwGa4City30d"></span>
+            <span id="tabAltisGa4ActiveToday"></span><span id="tabAltisGa4ActiveYesterday"></span><span id="tabAltisGa4Active7d"></span><span id="tabAltisGa4Active15d"></span><span id="tabAltisGa4Active30d"></span>
+            <span id="tabAltisGa4SessionsToday"></span><span id="tabAltisGa4SessionsYesterday"></span><span id="tabAltisGa4Sessions7d"></span><span id="tabAltisGa4Sessions15d"></span><span id="tabAltisGa4Sessions30d"></span>
+            <span id="tabAltisGa4ViewsToday"></span><span id="tabAltisGa4ViewsYesterday"></span><span id="tabAltisGa4Views7d"></span><span id="tabAltisGa4Views15d"></span><span id="tabAltisGa4Views30d"></span>
+            <span id="tabAltisGa4CityToday"></span><span id="tabAltisGa4CityYesterday"></span><span id="tabAltisGa4City7d"></span><span id="tabAltisGa4City15d"></span><span id="tabAltisGa4City30d"></span>
           </div>
         </div>
 
@@ -1349,6 +1341,20 @@
         tabAltisGa4City7d: document.getElementById("tabAltisGa4City7d"),
         tabAltisGa4City15d: document.getElementById("tabAltisGa4City15d"),
         tabAltisGa4City30d: document.getElementById("tabAltisGa4City30d"),
+        tabCwGa4SnapActiveUsers: document.getElementById("tabCwGa4SnapActiveUsers"),
+        tabCwGa4SnapNewUsers: document.getElementById("tabCwGa4SnapNewUsers"),
+        tabCwGa4SnapAvgEngagement: document.getElementById("tabCwGa4SnapAvgEngagement"),
+        tabCwGa4SnapEventCount: document.getElementById("tabCwGa4SnapEventCount"),
+        tabCwGa4CityTable: document.getElementById("tabCwGa4CityTable"),
+        tabCwGa4SourceTable: document.getElementById("tabCwGa4SourceTable"),
+        tabCwGa4PagesTable: document.getElementById("tabCwGa4PagesTable"),
+        tabAltisGa4SnapActiveUsers: document.getElementById("tabAltisGa4SnapActiveUsers"),
+        tabAltisGa4SnapNewUsers: document.getElementById("tabAltisGa4SnapNewUsers"),
+        tabAltisGa4SnapAvgEngagement: document.getElementById("tabAltisGa4SnapAvgEngagement"),
+        tabAltisGa4SnapEventCount: document.getElementById("tabAltisGa4SnapEventCount"),
+        tabAltisGa4CityTable: document.getElementById("tabAltisGa4CityTable"),
+        tabAltisGa4SourceTable: document.getElementById("tabAltisGa4SourceTable"),
+        tabAltisGa4PagesTable: document.getElementById("tabAltisGa4PagesTable"),
         statusDot: document.getElementById("statusDot"),
         statusText: document.getElementById("statusText"),
         ga4Badge: document.getElementById("ga4Badge"),
@@ -2064,6 +2070,14 @@
         }
       }
 
+      function formatSecondsCompact(n) {
+        const s = Math.max(0, Math.round(Number(n) || 0));
+        if (s < 60) return `${s}s`;
+        const m = Math.floor(s / 60);
+        const r = s % 60;
+        return r ? `${m}m ${r}s` : `${m}m`;
+      }
+
       function shortErrorText(resp) {
         if (resp?.ok) return "";
         const msg =
@@ -2162,6 +2176,20 @@
         el.tabAltisGa4City7d.textContent = "...";
         el.tabAltisGa4City15d.textContent = "...";
         el.tabAltisGa4City30d.textContent = "...";
+        el.tabCwGa4SnapActiveUsers.textContent = "...";
+        el.tabCwGa4SnapNewUsers.textContent = "...";
+        el.tabCwGa4SnapAvgEngagement.textContent = "...";
+        el.tabCwGa4SnapEventCount.textContent = "...";
+        el.tabCwGa4CityTable.textContent = "...";
+        el.tabCwGa4SourceTable.textContent = "...";
+        el.tabCwGa4PagesTable.textContent = "...";
+        el.tabAltisGa4SnapActiveUsers.textContent = "...";
+        el.tabAltisGa4SnapNewUsers.textContent = "...";
+        el.tabAltisGa4SnapAvgEngagement.textContent = "...";
+        el.tabAltisGa4SnapEventCount.textContent = "...";
+        el.tabAltisGa4CityTable.textContent = "...";
+        el.tabAltisGa4SourceTable.textContent = "...";
+        el.tabAltisGa4PagesTable.textContent = "...";
         setKpiCardSubvalue(el.tabAltisIgBestPlays, "");
         setKpiCardSubvalue(el.tabAltisIgBestReach, "");
         setKpiCardSubvalue(el.tabAltisIgBestSaves, "");
@@ -2326,6 +2354,14 @@
           altisGa4City7d,
           altisGa4City15d,
           altisGa4City30d,
+          coxwellGa4Snapshot,
+          coxwellGa4CityRows,
+          coxwellGa4SourceRows,
+          coxwellGa4PagesRows,
+          altisGa4Snapshot,
+          altisGa4CityRows,
+          altisGa4SourceRows,
+          altisGa4PagesRows,
           ga4Debug,
         ] = await Promise.all([
           postJson("/api/tools/run", { tool: "get_meta_leads_today", args: {} }),
@@ -2394,6 +2430,14 @@
           postJson("/api/tools/run", { tool: "get_ga4_top_city_last_7_days", args: { account_id: brandAccounts.altis } }),
           postJson("/api/tools/run", { tool: "get_ga4_top_city_last_15_days", args: { account_id: brandAccounts.altis } }),
           postJson("/api/tools/run", { tool: "get_ga4_top_city_last_30_days", args: { account_id: brandAccounts.altis } }),
+          postJson("/api/tools/run", { tool: "get_ga4_report_snapshot", args: { account_id: brandAccounts.coxwell, period: "last_30_days" } }),
+          postJson("/api/tools/run", { tool: "get_ga4_active_users_by_city", args: { account_id: brandAccounts.coxwell, period: "last_30_days", limit: 7 } }),
+          postJson("/api/tools/run", { tool: "get_ga4_sessions_by_source_medium", args: { account_id: brandAccounts.coxwell, period: "last_30_days", limit: 7 } }),
+          postJson("/api/tools/run", { tool: "get_ga4_top_pages_screens", args: { account_id: brandAccounts.coxwell, period: "last_30_days", limit: 7 } }),
+          postJson("/api/tools/run", { tool: "get_ga4_report_snapshot", args: { account_id: brandAccounts.altis, period: "last_30_days" } }),
+          postJson("/api/tools/run", { tool: "get_ga4_active_users_by_city", args: { account_id: brandAccounts.altis, period: "last_30_days", limit: 7 } }),
+          postJson("/api/tools/run", { tool: "get_ga4_sessions_by_source_medium", args: { account_id: brandAccounts.altis, period: "last_30_days", limit: 7 } }),
+          postJson("/api/tools/run", { tool: "get_ga4_top_pages_screens", args: { account_id: brandAccounts.altis, period: "last_30_days", limit: 7 } }),
           getJson("/api/ga4/debug-tag"),
         ]);
 
@@ -2661,6 +2705,64 @@
           : "-";
         el.tabAltisGa4City30d.textContent = altisGa4City30d.ok
           ? `${String(altisGa4City30d.json?.city ?? "-")} (${Number(altisGa4City30d.json?.sessions ?? 0)})`
+          : "-";
+        el.tabCwGa4SnapActiveUsers.textContent = coxwellGa4Snapshot.ok
+          ? String(coxwellGa4Snapshot.json?.active_users ?? "-")
+          : "-";
+        el.tabCwGa4SnapNewUsers.textContent = coxwellGa4Snapshot.ok
+          ? String(coxwellGa4Snapshot.json?.new_users ?? "-")
+          : "-";
+        el.tabCwGa4SnapAvgEngagement.textContent = coxwellGa4Snapshot.ok
+          ? formatSecondsCompact(coxwellGa4Snapshot.json?.avg_engagement_time_seconds)
+          : "-";
+        el.tabCwGa4SnapEventCount.textContent = coxwellGa4Snapshot.ok
+          ? String(coxwellGa4Snapshot.json?.event_count ?? "-")
+          : "-";
+        el.tabCwGa4CityTable.textContent = coxwellGa4CityRows.ok
+          ? (Array.isArray(coxwellGa4CityRows.json?.rows)
+              ? coxwellGa4CityRows.json.rows.map((r) => `${r.city}: ${Number(r.active_users ?? 0)}`).join("\n")
+              : "-")
+          : "-";
+        el.tabCwGa4SourceTable.textContent = coxwellGa4SourceRows.ok
+          ? (Array.isArray(coxwellGa4SourceRows.json?.rows)
+              ? coxwellGa4SourceRows.json.rows.map((r) => `${r.source_medium}: ${Number(r.sessions ?? 0)}`).join("\n")
+              : "-")
+          : "-";
+        el.tabCwGa4PagesTable.textContent = coxwellGa4PagesRows.ok
+          ? (Array.isArray(coxwellGa4PagesRows.json?.rows)
+              ? coxwellGa4PagesRows.json.rows
+                  .map((r) => `${r.page_title} | V:${Number(r.views ?? 0)} U:${Number(r.active_users ?? 0)} E:${Number(r.event_count ?? 0)} B:${Number(r.bounce_rate ?? 0).toFixed(1)}%`)
+                  .join("\n")
+              : "-")
+          : "-";
+        el.tabAltisGa4SnapActiveUsers.textContent = altisGa4Snapshot.ok
+          ? String(altisGa4Snapshot.json?.active_users ?? "-")
+          : "-";
+        el.tabAltisGa4SnapNewUsers.textContent = altisGa4Snapshot.ok
+          ? String(altisGa4Snapshot.json?.new_users ?? "-")
+          : "-";
+        el.tabAltisGa4SnapAvgEngagement.textContent = altisGa4Snapshot.ok
+          ? formatSecondsCompact(altisGa4Snapshot.json?.avg_engagement_time_seconds)
+          : "-";
+        el.tabAltisGa4SnapEventCount.textContent = altisGa4Snapshot.ok
+          ? String(altisGa4Snapshot.json?.event_count ?? "-")
+          : "-";
+        el.tabAltisGa4CityTable.textContent = altisGa4CityRows.ok
+          ? (Array.isArray(altisGa4CityRows.json?.rows)
+              ? altisGa4CityRows.json.rows.map((r) => `${r.city}: ${Number(r.active_users ?? 0)}`).join("\n")
+              : "-")
+          : "-";
+        el.tabAltisGa4SourceTable.textContent = altisGa4SourceRows.ok
+          ? (Array.isArray(altisGa4SourceRows.json?.rows)
+              ? altisGa4SourceRows.json.rows.map((r) => `${r.source_medium}: ${Number(r.sessions ?? 0)}`).join("\n")
+              : "-")
+          : "-";
+        el.tabAltisGa4PagesTable.textContent = altisGa4PagesRows.ok
+          ? (Array.isArray(altisGa4PagesRows.json?.rows)
+              ? altisGa4PagesRows.json.rows
+                  .map((r) => `${r.page_title} | V:${Number(r.views ?? 0)} U:${Number(r.active_users ?? 0)} E:${Number(r.event_count ?? 0)} B:${Number(r.bounce_rate ?? 0).toFixed(1)}%`)
+                  .join("\n")
+              : "-")
           : "-";
 
         const alertMessages = [];

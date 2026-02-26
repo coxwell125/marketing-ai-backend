@@ -30,6 +30,10 @@ import {
   getGa4TopPagesToday,
   getGa4PageViewsByPeriod,
   getGa4TopCityByPeriod,
+  getGa4ReportSnapshot,
+  getGa4ActiveUsersByCity,
+  getGa4SessionsBySourceMedium,
+  getGa4TopPagesScreens,
 } from "./ga4Api";
 
 type AnyJson = Record<string, any>;
@@ -457,6 +461,91 @@ function makeLocalMock(toolName: string, args: AnyJson = {}, reason = "Fallback 
     };
   }
 
+  if (toolName === "get_ga4_report_snapshot") {
+    return {
+      ok: true,
+      tool: toolName,
+      period: String(args?.period || "last_30_days"),
+      timezone: process.env.GA4_TIMEZONE || "Asia/Kolkata",
+      as_of_ist: asOf,
+      active_users: stableNumber(`${toolName}|au|${today}`, 100, 5000),
+      new_users: stableNumber(`${toolName}|nu|${today}`, 60, 4200),
+      avg_engagement_time_seconds: stableNumber(`${toolName}|et|${today}`, 15, 120),
+      event_count: stableNumber(`${toolName}|ec|${today}`, 500, 50000),
+      _mock: { used: true, reason },
+    };
+  }
+  if (toolName === "get_ga4_active_users_by_city") {
+    const cities = ["Singapore", "Delhi", "Lanzhou", "Hyderabad", "Bengaluru", "Kolkata", "Mumbai"];
+    const rows = cities.map((city, i) => ({
+      city,
+      active_users: stableNumber(`${toolName}|${today}|${i}`, 3, 30),
+    }));
+    rows.sort((a, b) => b.active_users - a.active_users);
+    return {
+      ok: true,
+      tool: toolName,
+      period: String(args?.period || "last_30_days"),
+      timezone: process.env.GA4_TIMEZONE || "Asia/Kolkata",
+      as_of_ist: asOf,
+      rows,
+      _mock: { used: true, reason },
+    };
+  }
+  if (toolName === "get_ga4_sessions_by_source_medium") {
+    const sources = [
+      "(direct) / (none)",
+      "google / organic",
+      "google / cpc",
+      "fb / paid",
+      "google_jobs_apply / referral",
+      "m.facebook.com / referral",
+      "bing / organic",
+    ];
+    const rows = sources.map((source_medium, i) => ({
+      source_medium,
+      sessions: stableNumber(`${toolName}|${today}|${i}`, 3, 120),
+    }));
+    rows.sort((a, b) => b.sessions - a.sessions);
+    return {
+      ok: true,
+      tool: toolName,
+      period: String(args?.period || "last_30_days"),
+      timezone: process.env.GA4_TIMEZONE || "Asia/Kolkata",
+      as_of_ist: asOf,
+      rows,
+      _mock: { used: true, reason },
+    };
+  }
+  if (toolName === "get_ga4_top_pages_screens") {
+    const pages = [
+      "Buy Polycarbonate Sheets | Coxwell",
+      "About Coxwell - Coxwell.in",
+      "Blogs & Case Studies - Coxwell.in",
+      "Contact Us - Coxwell.in",
+      "Polycarbonate Sheet - Coxwell.in",
+      "Best Polycarbonate Sheet Colours",
+      "Multicell - Coxwell.in",
+    ];
+    const rows = pages.map((page_title, i) => ({
+      page_title,
+      views: stableNumber(`${toolName}|v|${today}|${i}`, 10, 200),
+      active_users: stableNumber(`${toolName}|u|${today}|${i}`, 4, 120),
+      event_count: stableNumber(`${toolName}|e|${today}|${i}`, 20, 700),
+      bounce_rate: stableNumber(`${toolName}|b|${today}|${i}`, 0, 70),
+    }));
+    rows.sort((a, b) => b.views - a.views);
+    return {
+      ok: true,
+      tool: toolName,
+      period: String(args?.period || "last_30_days"),
+      timezone: process.env.GA4_TIMEZONE || "Asia/Kolkata",
+      as_of_ist: asOf,
+      rows,
+      _mock: { used: true, reason },
+    };
+  }
+
   return null;
 }
 
@@ -863,6 +952,73 @@ export const toolDefs: ToolDef[] = [
     handler: async (args) =>
       callToolWithFallback("get_ga4_top_city_last_30_days", args || {}, () =>
         getGa4TopCityByPeriod("last_30_days", args?.account_id)
+      ),
+  },
+  {
+    name: "get_ga4_report_snapshot",
+    description: "Returns GA4 report snapshot: active users, new users, average engagement time, and event count.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        account_id: { type: "string" },
+        period: { type: "string", enum: ["today", "yesterday", "last_7_days", "last_15_days", "last_30_days"] },
+      },
+      additionalProperties: false,
+    },
+    handler: async (args) =>
+      callToolWithFallback("get_ga4_report_snapshot", args || {}, () =>
+        getGa4ReportSnapshot(args?.period || "last_30_days", args?.account_id)
+      ),
+  },
+  {
+    name: "get_ga4_active_users_by_city",
+    description: "Returns top cities by GA4 active users.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        account_id: { type: "string" },
+        period: { type: "string", enum: ["today", "yesterday", "last_7_days", "last_15_days", "last_30_days"] },
+        limit: { type: "number" },
+      },
+      additionalProperties: false,
+    },
+    handler: async (args) =>
+      callToolWithFallback("get_ga4_active_users_by_city", args || {}, () =>
+        getGa4ActiveUsersByCity(args?.period || "last_30_days", args?.limit ?? 7, args?.account_id)
+      ),
+  },
+  {
+    name: "get_ga4_sessions_by_source_medium",
+    description: "Returns top session source/medium rows by GA4 sessions.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        account_id: { type: "string" },
+        period: { type: "string", enum: ["today", "yesterday", "last_7_days", "last_15_days", "last_30_days"] },
+        limit: { type: "number" },
+      },
+      additionalProperties: false,
+    },
+    handler: async (args) =>
+      callToolWithFallback("get_ga4_sessions_by_source_medium", args || {}, () =>
+        getGa4SessionsBySourceMedium(args?.period || "last_30_days", args?.limit ?? 7, args?.account_id)
+      ),
+  },
+  {
+    name: "get_ga4_top_pages_screens",
+    description: "Returns top pages/screens with views, active users, event count, and bounce rate.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        account_id: { type: "string" },
+        period: { type: "string", enum: ["today", "yesterday", "last_7_days", "last_15_days", "last_30_days"] },
+        limit: { type: "number" },
+      },
+      additionalProperties: false,
+    },
+    handler: async (args) =>
+      callToolWithFallback("get_ga4_top_pages_screens", args || {}, () =>
+        getGa4TopPagesScreens(args?.period || "last_30_days", args?.limit ?? 7, args?.account_id)
       ),
   },
 ];

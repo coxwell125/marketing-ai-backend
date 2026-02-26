@@ -715,3 +715,173 @@ export async function getGa4TopCityByPeriod(
     sessions,
   };
 }
+
+export async function getGa4ReportSnapshot(
+  period: "today" | "yesterday" | "last_7_days" | "last_15_days" | "last_30_days" = "last_30_days",
+  accountId?: string
+): Promise<
+  Ga4Base & {
+    tool: "get_ga4_report_snapshot";
+    period: "today" | "yesterday" | "last_7_days" | "last_15_days" | "last_30_days";
+    active_users: number;
+    new_users: number;
+    avg_engagement_time_seconds: number;
+    event_count: number;
+  }
+> {
+  if (!isGa4Enabled()) throw new Error("ENABLE_GA4_API=false");
+  const client = getClient();
+  const { startDate, endDate } = rangeForPeriod(period);
+  const [resp] = await client.runReport({
+    property: getProperty(accountId),
+    dateRanges: [{ startDate, endDate }],
+    metrics: [
+      { name: "activeUsers" },
+      { name: "newUsers" },
+      { name: "userEngagementDuration" },
+      { name: "eventCount" },
+    ],
+  });
+  const row = Array.isArray(resp.rows) && resp.rows.length ? resp.rows[0] : null;
+  const activeUsers = Number(row?.metricValues?.[0]?.value || 0) || 0;
+  const newUsers = Number(row?.metricValues?.[1]?.value || 0) || 0;
+  const engagementSeconds = Number(row?.metricValues?.[2]?.value || 0) || 0;
+  const eventCount = Number(row?.metricValues?.[3]?.value || 0) || 0;
+  const avgEngagement = activeUsers > 0 ? engagementSeconds / activeUsers : 0;
+  return {
+    ok: true,
+    tool: "get_ga4_report_snapshot",
+    period,
+    timezone: getTimezone(),
+    as_of_ist: nowIso(),
+    active_users: activeUsers,
+    new_users: newUsers,
+    avg_engagement_time_seconds: avgEngagement,
+    event_count: eventCount,
+  };
+}
+
+export async function getGa4ActiveUsersByCity(
+  period: "today" | "yesterday" | "last_7_days" | "last_15_days" | "last_30_days" = "last_30_days",
+  limit = 7,
+  accountId?: string
+): Promise<
+  Ga4Base & {
+    tool: "get_ga4_active_users_by_city";
+    period: "today" | "yesterday" | "last_7_days" | "last_15_days" | "last_30_days";
+    rows: Array<{ city: string; active_users: number }>;
+  }
+> {
+  if (!isGa4Enabled()) throw new Error("ENABLE_GA4_API=false");
+  const client = getClient();
+  const { startDate, endDate } = rangeForPeriod(period);
+  const [resp] = await client.runReport({
+    property: getProperty(accountId),
+    dateRanges: [{ startDate, endDate }],
+    dimensions: [{ name: "city" }],
+    metrics: [{ name: "activeUsers" }],
+    orderBys: [{ metric: { metricName: "activeUsers" }, desc: true }],
+    limit,
+  });
+  const rows =
+    resp.rows?.map((r) => ({
+      city: String(r.dimensionValues?.[0]?.value || "").trim() || "(not set)",
+      active_users: Number(r.metricValues?.[0]?.value || 0) || 0,
+    })) ?? [];
+  return {
+    ok: true,
+    tool: "get_ga4_active_users_by_city",
+    period,
+    timezone: getTimezone(),
+    as_of_ist: nowIso(),
+    rows,
+  };
+}
+
+export async function getGa4SessionsBySourceMedium(
+  period: "today" | "yesterday" | "last_7_days" | "last_15_days" | "last_30_days" = "last_30_days",
+  limit = 7,
+  accountId?: string
+): Promise<
+  Ga4Base & {
+    tool: "get_ga4_sessions_by_source_medium";
+    period: "today" | "yesterday" | "last_7_days" | "last_15_days" | "last_30_days";
+    rows: Array<{ source_medium: string; sessions: number }>;
+  }
+> {
+  if (!isGa4Enabled()) throw new Error("ENABLE_GA4_API=false");
+  const client = getClient();
+  const { startDate, endDate } = rangeForPeriod(period);
+  const [resp] = await client.runReport({
+    property: getProperty(accountId),
+    dateRanges: [{ startDate, endDate }],
+    dimensions: [{ name: "sessionSourceMedium" }],
+    metrics: [{ name: "sessions" }],
+    orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
+    limit,
+  });
+  const rows =
+    resp.rows?.map((r) => ({
+      source_medium: String(r.dimensionValues?.[0]?.value || "").trim() || "(not set)",
+      sessions: Number(r.metricValues?.[0]?.value || 0) || 0,
+    })) ?? [];
+  return {
+    ok: true,
+    tool: "get_ga4_sessions_by_source_medium",
+    period,
+    timezone: getTimezone(),
+    as_of_ist: nowIso(),
+    rows,
+  };
+}
+
+export async function getGa4TopPagesScreens(
+  period: "today" | "yesterday" | "last_7_days" | "last_15_days" | "last_30_days" = "last_30_days",
+  limit = 7,
+  accountId?: string
+): Promise<
+  Ga4Base & {
+    tool: "get_ga4_top_pages_screens";
+    period: "today" | "yesterday" | "last_7_days" | "last_15_days" | "last_30_days";
+    rows: Array<{
+      page_title: string;
+      views: number;
+      active_users: number;
+      event_count: number;
+      bounce_rate: number;
+    }>;
+  }
+> {
+  if (!isGa4Enabled()) throw new Error("ENABLE_GA4_API=false");
+  const client = getClient();
+  const { startDate, endDate } = rangeForPeriod(period);
+  const [resp] = await client.runReport({
+    property: getProperty(accountId),
+    dateRanges: [{ startDate, endDate }],
+    dimensions: [{ name: "pageTitle" }],
+    metrics: [
+      { name: "screenPageViews" },
+      { name: "activeUsers" },
+      { name: "eventCount" },
+      { name: "bounceRate" },
+    ],
+    orderBys: [{ metric: { metricName: "screenPageViews" }, desc: true }],
+    limit,
+  });
+  const rows =
+    resp.rows?.map((r) => ({
+      page_title: String(r.dimensionValues?.[0]?.value || "").trim() || "(not set)",
+      views: Number(r.metricValues?.[0]?.value || 0) || 0,
+      active_users: Number(r.metricValues?.[1]?.value || 0) || 0,
+      event_count: Number(r.metricValues?.[2]?.value || 0) || 0,
+      bounce_rate: (Number(r.metricValues?.[3]?.value || 0) || 0) * 100,
+    })) ?? [];
+  return {
+    ok: true,
+    tool: "get_ga4_top_pages_screens",
+    period,
+    timezone: getTimezone(),
+    as_of_ist: nowIso(),
+    rows,
+  };
+}
