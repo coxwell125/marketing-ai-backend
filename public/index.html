@@ -49,6 +49,9 @@
         flex-direction: column;
         gap: 10px;
       }
+      .sidebar-head {
+        display: none;
+      }
       .menu-btn {
         display: none;
       }
@@ -781,6 +784,21 @@
           transform: translateX(-105%);
           transition: transform 0.2s ease;
         }
+        .sidebar-head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+          padding-bottom: 2px;
+        }
+        .sidebar-close {
+          width: 38px;
+          height: 38px;
+          border-radius: 10px;
+          padding: 0;
+          font-size: 18px;
+          line-height: 1;
+        }
         body.sidebar-open .sidebar {
           transform: translateX(0);
         }
@@ -849,18 +867,24 @@
           align-items: center;
           flex-wrap: wrap;
         }
+        .kpi-toolbar .right {
+          width: 100%;
+          display: flex;
+          justify-content: flex-end;
+        }
         .kpi-tabs {
-          display: grid;
-          grid-auto-flow: column;
-          grid-auto-columns: minmax(170px, 1fr);
+          display: flex;
           overflow-x: auto;
           gap: 8px;
+          padding-inline: 2px;
           padding-bottom: 4px;
           scroll-snap-type: x mandatory;
         }
         .kpi-tab {
           scroll-snap-align: start;
           white-space: nowrap;
+          flex: 0 0 auto;
+          min-width: 152px;
         }
         .kpi-panel,
         .kpi-panel.active {
@@ -972,6 +996,11 @@
           font-size: 12px;
           padding: 9px 8px;
         }
+        .kpi-tab {
+          min-width: 136px;
+          padding: 8px 10px;
+          font-size: 12px;
+        }
         .muted-pill {
           text-align: center;
         }
@@ -1017,6 +1046,10 @@
   <body>
     <div class="app">
       <aside class="sidebar">
+        <div class="sidebar-head">
+          <div class="title">Menu</div>
+          <button id="closeSidebar" class="ghost sidebar-close" aria-label="Close menu" title="Close">x</button>
+        </div>
         <div class="row">
           <button id="newChat">+ New Chat</button>
           <button id="clearChat" class="ghost">Clear</button>
@@ -1393,6 +1426,7 @@
         ga4Badge: document.getElementById("ga4Badge"),
         scrollTopBtn: document.getElementById("scrollTopBtn"),
         toggleSidebar: document.getElementById("toggleSidebar"),
+        closeSidebar: document.getElementById("closeSidebar"),
         sidebarBackdrop: document.getElementById("sidebarBackdrop"),
         main: document.querySelector(".main"),
         navKpi: document.getElementById("navKpi"),
@@ -3315,6 +3349,12 @@
       }
       if (el.sidebarBackdrop) {
         el.sidebarBackdrop.onclick = () => {
+          setSidebarOpen(false);
+          setMobileNavActive("kpi");
+        };
+      }
+      if (el.closeSidebar) {
+        el.closeSidebar.onclick = () => {
           setSidebarOpen(false);
           setMobileNavActive("kpi");
         };
