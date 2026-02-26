@@ -2834,7 +2834,13 @@
         if (el.tabAccountHint) el.tabAccountHint.textContent = `Account: ${hintAccount}`;
 
         if (!ga4Debug.ok) {
-          setGa4Badge("err", "GA4: config/access error");
+          const hasGa4Data =
+            coxwellGa4Snapshot.ok ||
+            altisGa4Snapshot.ok ||
+            coxwellGa4PagesRows.ok ||
+            altisGa4PagesRows.ok;
+          if (hasGa4Data) setGa4Badge("warn", "GA4: live data loaded (debug check failed)");
+          else setGa4Badge("err", "GA4: config/access error");
         } else {
           const m = ga4Debug.json?.metrics || {};
           const active = Number(m.realtime_active_users || 0);

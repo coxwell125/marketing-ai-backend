@@ -96,9 +96,10 @@ function rangeForPeriod(period: "today" | "yesterday" | "last_7_days" | "last_15
 } {
   if (period === "today") return { startDate: "today", endDate: "today" };
   if (period === "yesterday") return { startDate: "yesterday", endDate: "yesterday" };
-  if (period === "last_7_days") return { startDate: "7daysAgo", endDate: "today" };
-  if (period === "last_15_days") return { startDate: "15daysAgo", endDate: "today" };
-  return { startDate: "30daysAgo", endDate: "today" };
+  // Match GA4 reports-style "completed days" ranges (exclude in-progress today).
+  if (period === "last_7_days") return { startDate: "7daysAgo", endDate: "yesterday" };
+  if (period === "last_15_days") return { startDate: "15daysAgo", endDate: "yesterday" };
+  return { startDate: "30daysAgo", endDate: "yesterday" };
 }
 
 export async function verifyGa4Setup(): Promise<{
@@ -738,16 +739,15 @@ export async function getGa4ReportSnapshot(
     metrics: [
       { name: "activeUsers" },
       { name: "newUsers" },
-      { name: "userEngagementDuration" },
+      { name: "averageSessionDuration" },
       { name: "eventCount" },
     ],
   });
   const row = Array.isArray(resp.rows) && resp.rows.length ? resp.rows[0] : null;
   const activeUsers = Number(row?.metricValues?.[0]?.value || 0) || 0;
   const newUsers = Number(row?.metricValues?.[1]?.value || 0) || 0;
-  const engagementSeconds = Number(row?.metricValues?.[2]?.value || 0) || 0;
+  const avgEngagement = Number(row?.metricValues?.[2]?.value || 0) || 0;
   const eventCount = Number(row?.metricValues?.[3]?.value || 0) || 0;
-  const avgEngagement = activeUsers > 0 ? engagementSeconds / activeUsers : 0;
   return {
     ok: true,
     tool: "get_ga4_report_snapshot",
@@ -858,14 +858,14 @@ export async function getGa4TopPagesScreens(
   const [resp] = await client.runReport({
     property: getProperty(accountId),
     dateRanges: [{ startDate, endDate }],
-    dimensions: [{ name: "pageTitle" }],
+    dimensions: [{ name: "pageTitleAndScreenClass" }],
     metrics: [
-      { name: "screenPageViews" },
+      { name: "views" },
       { name: "activeUsers" },
       { name: "eventCount" },
       { name: "bounceRate" },
     ],
-    orderBys: [{ metric: { metricName: "screenPageViews" }, desc: true }],
+    orderBys: [{ metric: { metricName: "views" }, desc: true }],
     limit,
   });
   const rows =
