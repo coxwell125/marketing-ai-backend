@@ -2837,13 +2837,9 @@
           : "-";
         el.tabCwGa4PagesTable.textContent = coxwellGa4PagesRows.ok
           ? (Array.isArray(coxwellGa4PagesRows.json?.rows)
-              ? [
-                  coxwellGa4PagesRows.json.rows
+              ? coxwellGa4PagesRows.json.rows
                   .map((r) => `${r.page_title} | V:${Number(r.views ?? 0)} U:${Number(r.active_users ?? 0)} E:${Number(r.event_count ?? 0)} B:${Number(r.bounce_rate ?? 0).toFixed(1)}%`)
-                  .join("\n"),
-                  "",
-                  GA4_TOP_PAGES_LEGEND,
-                ].join("\n")
+                  .join("\n")
               : "-")
           : "-";
         setKpiCardSubvalue(el.tabCwGa4PagesTable, GA4_TOP_PAGES_LEGEND);
@@ -2871,13 +2867,9 @@
           : "-";
         el.tabAltisGa4PagesTable.textContent = altisGa4PagesRows.ok
           ? (Array.isArray(altisGa4PagesRows.json?.rows)
-              ? [
-                  altisGa4PagesRows.json.rows
+              ? altisGa4PagesRows.json.rows
                   .map((r) => `${r.page_title} | V:${Number(r.views ?? 0)} U:${Number(r.active_users ?? 0)} E:${Number(r.event_count ?? 0)} B:${Number(r.bounce_rate ?? 0).toFixed(1)}%`)
-                  .join("\n"),
-                  "",
-                  GA4_TOP_PAGES_LEGEND,
-                ].join("\n")
+                  .join("\n")
               : "-")
           : "-";
         setKpiCardSubvalue(el.tabAltisGa4PagesTable, GA4_TOP_PAGES_LEGEND);
