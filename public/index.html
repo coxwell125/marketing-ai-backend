@@ -1265,26 +1265,8 @@
       const STORAGE_ACTIVE_FOLDER = "mai-active-folder-v1";
       const LEGACY_STORAGE_KEYS = ["mai-conversations-v3", "mai-conversations-v2", "mai-conversations"];
       const LEGACY_CURR_KEYS = ["mai-current-conv-id", "mai-current-conv-id-v3", "mai-current-conv-id-v2"];
-      const SUGGESTIONS = [
-        "How many Meta leads today?",
-        "How many Meta leads in last 30 days?",
-        "How much Meta spend today?",
-        "Meta spend this month",
-        "Which campaign is performing best today?",
-        "GA4 active users today",
-        "GA4 active users yesterday",
-        "GA4 active users last 7 days",
-        "GA4 sessions today",
-        "What is my 5-day ad spend estimate?",
-        "Which ad is performing very poor and why?",
-        "Compare Meta spend today vs yesterday",
-        "What is my CPL trend this week?",
-        "Show me overall Meta + GA4 performance snapshot",
-        "Give me top 3 actions to improve lead quality",
-        "Where is budget getting wasted today?",
-        "How can I reduce CPL from today data?",
-      ];
-
+      const GA4_TOP_PAGES_LEGEND =
+        "V = Views, U = Active Users, E = Event Count, B = Bounce Rate (%)";
       const el = {
         chat: document.getElementById("chat"),
         msg: document.getElementById("msg"),
@@ -1492,31 +1474,49 @@
           "Coxwell meta spend today",
           "Coxwell meta leads last 7 days",
           "Coxwell best campaign today",
+          "Coxwell meta spend this month",
+          "Coxwell meta leads today",
+          "Coxwell meta spend last 7 days",
         ],
         "coxwell-ig": [
           "Coxwell instagram followers",
           "Coxwell best reel overall",
           "Coxwell instagram reel reach",
+          "Coxwell instagram best reel saves",
+          "Coxwell instagram media count",
+          "Coxwell instagram account overview",
         ],
         "coxwell-ga4": [
           "Coxwell ga4 active users today",
           "Coxwell ga4 sessions today",
           "Coxwell ga4 sessions this month",
+          "Coxwell ga4 active users yesterday",
+          "Coxwell ga4 active users last 7 days",
+          "Coxwell ga4 top city today",
         ],
         "altis-meta": [
           "Altis meta spend today",
           "Altis meta leads last 7 days",
           "Altis best campaign today",
+          "Altis meta spend this month",
+          "Altis meta leads today",
+          "Altis meta spend last 7 days",
         ],
         "altis-ig": [
           "Altis instagram followers",
           "Altis best reel overall",
           "Altis instagram reel reach",
+          "Altis instagram best reel saves",
+          "Altis instagram media count",
+          "Altis instagram account overview",
         ],
         "altis-ga4": [
           "Altis ga4 active users today",
           "Altis ga4 sessions today",
           "Altis ga4 sessions this month",
+          "Altis ga4 active users yesterday",
+          "Altis ga4 active users last 7 days",
+          "Altis ga4 top city today",
         ],
       };
 
@@ -1641,15 +1641,45 @@
         return fromInput || fromStorage;
       }
 
+      function getBrandFromActiveTab() {
+        return String(activeKpiTab || "").startsWith("altis-") ? "altis" : "coxwell";
+      }
+
+      function detectBrandFromQuestion(question) {
+        const q = String(question || "").toLowerCase();
+        if (q.includes("altis")) return "altis";
+        if (q.includes("coxwell")) return "coxwell";
+        return "";
+      }
+
+      function getBrandAccountId(brand) {
+        const accounts = getBrandAccounts();
+        if (brand === "altis") return String(accounts.altis || "");
+        if (brand === "coxwell") return String(accounts.coxwell || "");
+        return "";
+      }
+
+      function getEffectiveAccountIdForQuestion(question) {
+        const explicitBrand = detectBrandFromQuestion(question);
+        if (explicitBrand) {
+          const brandId = getBrandAccountId(explicitBrand);
+          if (brandId) return brandId;
+        }
+        const activeBrand = getBrandFromActiveTab();
+        const tabBrandId = getBrandAccountId(activeBrand);
+        if (tabBrandId) return tabBrandId;
+        return getMetaAccountId();
+      }
+
       function resolveUrl(path) {
         const base = getBackendBase();
         if (!base) return path;
         if (/^https?:\/\//i.test(path)) return path;
         return base + path;
       }
-      async function postJson(url, body) {
+      async function postJson(url, body, options = {}) {
         const key = getApiKey();
-        const accountId = getMetaAccountId();
+        const accountId = String(options?.metaAccountId || getMetaAccountId() || "").trim();
         let res;
         try {
           res = await fetch(resolveUrl(url), {
@@ -2807,11 +2837,16 @@
           : "-";
         el.tabCwGa4PagesTable.textContent = coxwellGa4PagesRows.ok
           ? (Array.isArray(coxwellGa4PagesRows.json?.rows)
-              ? coxwellGa4PagesRows.json.rows
+              ? [
+                  coxwellGa4PagesRows.json.rows
                   .map((r) => `${r.page_title} | V:${Number(r.views ?? 0)} U:${Number(r.active_users ?? 0)} E:${Number(r.event_count ?? 0)} B:${Number(r.bounce_rate ?? 0).toFixed(1)}%`)
-                  .join("\n")
+                  .join("\n"),
+                  "",
+                  GA4_TOP_PAGES_LEGEND,
+                ].join("\n")
               : "-")
           : "-";
+        setKpiCardSubvalue(el.tabCwGa4PagesTable, GA4_TOP_PAGES_LEGEND);
         el.tabAltisGa4SnapActiveUsers.textContent = altisGa4Snapshot.ok
           ? String(altisGa4Snapshot.json?.active_users ?? "-")
           : "-";
@@ -2836,11 +2871,16 @@
           : "-";
         el.tabAltisGa4PagesTable.textContent = altisGa4PagesRows.ok
           ? (Array.isArray(altisGa4PagesRows.json?.rows)
-              ? altisGa4PagesRows.json.rows
+              ? [
+                  altisGa4PagesRows.json.rows
                   .map((r) => `${r.page_title} | V:${Number(r.views ?? 0)} U:${Number(r.active_users ?? 0)} E:${Number(r.event_count ?? 0)} B:${Number(r.bounce_rate ?? 0).toFixed(1)}%`)
-                  .join("\n")
+                  .join("\n"),
+                  "",
+                  GA4_TOP_PAGES_LEGEND,
+                ].join("\n")
               : "-")
           : "-";
+        setKpiCardSubvalue(el.tabAltisGa4PagesTable, GA4_TOP_PAGES_LEGEND);
 
         const alertMessages = [];
         const coxwellIgDiag = buildInstagramDiagnostic(
@@ -3075,7 +3115,8 @@
         el.send.disabled = true;
         el.regen.disabled = true;
         const typing = addTyping();
-        const r = await postJson("/api/chat", { message: q });
+        const accountIdForQuestion = getEffectiveAccountIdForQuestion(q);
+        const r = await postJson("/api/chat", { message: q }, { metaAccountId: accountIdForQuestion });
         typing.remove();
 
         let answer = "";
@@ -3245,8 +3286,7 @@
       function renderChips() {
         el.chips.innerHTML = "";
         const contextual = TAB_QUERIES[activeKpiTab] || [];
-        const merged = [...contextual, ...SUGGESTIONS].slice(0, 12);
-        merged.forEach((q) => {
+        contextual.forEach((q) => {
           const b = document.createElement("button");
           b.className = "chip";
           b.textContent = q;

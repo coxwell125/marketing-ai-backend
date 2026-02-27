@@ -5,6 +5,7 @@ import OpenAI from "openai";
 import { existsSync, readdirSync, readFileSync } from "fs";
 import path from "path";
 import { getOpenAITools, runToolByName } from "../services/toolIntegration";
+import { getAllowedMetaAccountIds } from "../services/metaTenant";
 
 const router = Router();
 
@@ -761,6 +762,24 @@ function normalizeMessage(message: string): string {
     .trim();
 }
 
+function detectBrandFromMessage(message: string): "coxwell" | "altis" | null {
+  const m = normalizeMessage(message);
+  if (/\baltis\b/.test(m)) return "altis";
+  if (/\bcoxwell\b/.test(m)) return "coxwell";
+  return null;
+}
+
+function resolveBrandAwareAccountId(message: string, requestedAccountId?: string): string | undefined {
+  const requested = String(requestedAccountId || "").trim();
+  const allowed = getAllowedMetaAccountIds();
+  const fallback = requested || allowed[0] || "";
+  const brand = detectBrandFromMessage(message);
+
+  if (!brand) return fallback || undefined;
+  if (brand === "coxwell") return allowed[0] || fallback || undefined;
+  return allowed[1] || fallback || allowed[0] || undefined;
+}
+
 function fallbackConversationalAnswer(rawMessage: string): string {
   const q = rawMessage.trim();
   return `I understood your question: "${q}". I can answer Meta/GA4 data queries directly right now (today, yesterday, month, campaign performance). If you want a wider ChatGPT-style general assistant for any topic, we need a working OpenAI key (your current key is hitting quota).`;
@@ -1195,10 +1214,12 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
 
     const userMessage = parsed.data.message.trim();
     const normalizedMessage = normalizeMessage(userMessage);
-    const responseCacheKey = normalizedMessage;
+    const requestedMetaAccountId = req.header("x-meta-account-id") || "";
+    const effectiveMetaAccountId = resolveBrandAwareAccountId(normalizedMessage, requestedMetaAccountId);
+    const responseCacheKey = `${normalizedMessage}::${effectiveMetaAccountId || "-"}`;
     const wantsComparison = isComparisonIntent(normalizedMessage);
     const toolContext = {
-      metaAccountId: req.header("x-meta-account-id") || undefined,
+      metaAccountId: effectiveMetaAccountId,
       role: (req as any)?.auth?.role,
     } as const;
     const runTool = (name: string, args: Record<string, any> = {}) =>
