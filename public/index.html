@@ -3129,11 +3129,23 @@
         return w;
       }
 
+      function buildChatHistoryPayload(c, maxItems = 16) {
+        if (!c || !Array.isArray(c.messages)) return [];
+        return c.messages
+          .filter((m) => (m.role === "user" || m.role === "assistant") && String(m.text || "").trim())
+          .slice(-maxItems)
+          .map((m) => ({
+            role: m.role,
+            text: String(m.text || "").slice(0, 3000),
+          }));
+      }
+
       async function askAssistant(question, appendUser = true) {
         const q = question.trim();
         if (!q) return;
         ensureConversation();
         if (appendUser) upsertMessage("user", q);
+        const c = getCurrentConversation();
         renderConversationList();
         renderCurrentConversation();
 
@@ -3141,7 +3153,15 @@
         el.regen.disabled = true;
         const typing = addTyping();
         const accountIdForQuestion = getEffectiveAccountIdForQuestion(q);
-        const r = await postJson("/api/chat", { message: q }, { metaAccountId: accountIdForQuestion });
+        const r = await postJson(
+          "/api/chat",
+          {
+            message: q,
+            conversation_id: c?.id || "",
+            history: buildChatHistoryPayload(c),
+          },
+          { metaAccountId: accountIdForQuestion }
+        );
         typing.remove();
 
         let answer = "";

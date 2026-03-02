@@ -12,6 +12,16 @@ const router = Router();
 
 const ChatBodySchema = z.object({
   message: z.string().min(1, "message is required"),
+  conversation_id: z.string().min(1).max(120).optional(),
+  history: z
+    .array(
+      z.object({
+        role: z.enum(["user", "assistant"]),
+        text: z.string().min(1).max(4000),
+      })
+    )
+    .max(30)
+    .optional(),
 });
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -298,7 +308,8 @@ async function answerFromOpenAIWithTools(
   message: string,
   runTool: (name: string, args?: Record<string, any>) => Promise<any>,
   brandAccounts?: { coxwell?: string; altis?: string },
-  minToolCalls = 1
+  minToolCalls = 1,
+  priorTurns: Array<{ role: "user" | "assistant"; text: string }> = []
 ): Promise<{ answer: string; tools: Array<{ name: string; result: any }>; mode: string } | null> {
   if (!process.env.OPENAI_API_KEY) return null;
 
@@ -315,10 +326,14 @@ async function answerFromOpenAIWithTools(
   }
 
   const tools = getOpenAITools();
-  const messages: any[] = [
-    { role: "system", content: systemParts.join(" ") },
-    { role: "user", content: message },
-  ];
+  const memoryMessages = priorTurns
+    .slice(-16)
+    .map((m) => ({
+      role: m.role,
+      content: String(m.text || "").slice(0, 2000),
+    }))
+    .filter((m) => m.content.trim().length > 0);
+  const messages: any[] = [{ role: "system", content: systemParts.join(" ") }, ...memoryMessages, { role: "user", content: message }];
   const toolResults: Array<{ name: string; result: any }> = [];
 
   for (let round = 0; round < 4; round++) {
@@ -1466,6 +1481,15 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
     }
 
     const userMessage = parsed.data.message.trim();
+    const conversationId = String(parsed.data.conversation_id || "").trim();
+    const priorTurns = Array.isArray(parsed.data.history)
+      ? parsed.data.history
+          .map((h) => ({
+            role: h.role,
+            text: String(h.text || "").trim(),
+          }))
+          .filter((h) => !!h.text)
+      : [];
     const normalizedMessage = normalizeMessage(userMessage);
     const requestedMetaAccountId = req.header("x-meta-account-id") || "";
     const effectiveMetaAccountId = resolveBrandAwareAccountId(normalizedMessage, requestedMetaAccountId);
@@ -1497,14 +1521,15 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
           userMessage,
           (name, args = {}) => runTool(name, args),
           { coxwell: allowed[0], altis: allowed[1] || allowed[0] },
-          getOpenAIMinToolCalls()
+          getOpenAIMinToolCalls(),
+          priorTurns
         );
         if (openaiToolAnswer) {
           const payload: ResponsePayload = {
             ok: true,
             answer: openaiToolAnswer.answer,
             tools: openaiToolAnswer.tools,
-            meta: { rid, mode: "openai-first-tools" },
+            meta: { rid, mode: "openai-first-tools", conversation_id: conversationId || undefined },
           };
           // Intentionally no response-cache set here to keep responses less templated/repetitive.
           return res.json(payload);
@@ -2320,7 +2345,8 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
           userMessage,
           (name, args = {}) => runTool(name, args),
           { coxwell: allowed[0], altis: allowed[1] || allowed[0] },
-          1
+          1,
+          priorTurns
         );
         if (openaiToolAnswer && openaiToolAnswer.tools.length > 0) {
           const payload: ResponsePayload = {
