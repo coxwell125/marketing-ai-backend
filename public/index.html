@@ -1465,6 +1465,8 @@
       let coxwellGa4Period = localStorage.getItem("mai-ga4-period-coxwell") || "last_30_days";
       let altisGa4Period = localStorage.getItem("mai-ga4-period-altis") || "last_30_days";
       const kpiPrevValue = new Map();
+      let kpiFetchInFlight = false;
+      let kpiRateLimitUntil = 0;
       coxwellGa4Period = sanitizeGa4Period(coxwellGa4Period);
       altisGa4Period = sanitizeGa4Period(altisGa4Period);
       if (el.cwGa4PeriodSelect) el.cwGa4PeriodSelect.value = coxwellGa4Period;
@@ -2377,6 +2379,12 @@
       }
 
       async function fetchLiveKpis() {
+        if (kpiFetchInFlight) return;
+        if (Date.now() < kpiRateLimitUntil) {
+          const mins = Math.max(1, Math.ceil((kpiRateLimitUntil - Date.now()) / 60000));
+          setStatus("data", `Rate limited. Auto refresh paused for ${mins} min.`);
+          return;
+        }
         const hasKey = getApiKey();
         if (!hasKey) {
           setStatus("auth", "Auth Error: x-api-key missing");
@@ -2384,13 +2392,15 @@
           return;
         }
 
-        setKpiLoading();
-        setGa4Badge("warn", "GA4: checking...");
-        const ok = await checkLiveStatus();
-        if (!ok) {
-          setGa4Badge("err", "GA4: backend/auth issue");
-          return;
-        }
+        kpiFetchInFlight = true;
+        try {
+          setKpiLoading();
+          setGa4Badge("warn", "GA4: checking...");
+          const ok = await checkLiveStatus();
+          if (!ok) {
+            setGa4Badge("err", "GA4: backend/auth issue");
+            return;
+          }
 
         const brandAccounts = getBrandAccounts();
 
@@ -2547,6 +2557,25 @@
           postJson("/api/tools/run", { tool: "get_ga4_top_pages_screens", args: { account_id: brandAccounts.altis, period: altisGa4Period, limit: 7 } }),
           getJson("/api/ga4/debug-tag"),
         ]);
+
+        const criticalCalls = [
+          leads,
+          spendToday,
+          spendMonth,
+          bestCampaign,
+          igOverview,
+          igBestReel,
+          coxwellIgOverview,
+          coxwellIgBestReel,
+          altisIgOverview,
+          altisIgBestReel,
+          ga4Debug,
+        ];
+        const hitRateLimit = criticalCalls.some((r) => !r?.ok && Number(r?.status || 0) === 429);
+        if (hitRateLimit) {
+          kpiRateLimitUntil = Date.now() + 10 * 60 * 1000;
+          showAlert("Rate limit reached. Pausing auto KPI refresh for 10 minutes.");
+        }
 
         if (leads.ok) setKpiCardMetric(el.kpiLeads, String(leads.json?.leads ?? "-"));
         else setKpiCardMetric(el.kpiLeads, "-");
@@ -2918,12 +2947,15 @@
             setGa4Badge("warn", "GA4: connected, no traffic yet");
           }
         }
+        } finally {
+          kpiFetchInFlight = false;
+        }
       }
 
-      function upsertMessage(role, text) {
+      function upsertMessage(role, text, extra = {}) {
         const c = getCurrentConversation();
         if (!c) return;
-        c.messages.push({ id: uid(), role, text, ts: nowIso() });
+        c.messages.push({ id: uid(), role, text, ts: nowIso(), ...extra });
         c.updatedAt = nowIso();
         c.title = buildTitle(c.messages);
         conversations.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
@@ -2940,7 +2972,8 @@
         content.className = "content";
         const meta = document.createElement("div");
         meta.className = "meta";
-        meta.innerHTML = `<span>${msg.role}</span><span class="ts">${fmtTime(msg.ts || nowIso())}</span>`;
+        const modeTag = msg.role === "assistant" && msg.mode ? `<span class="ts">mode: ${escapeHtml(String(msg.mode))}</span>` : "";
+        meta.innerHTML = `<span>${msg.role}</span>${modeTag}<span class="ts">${fmtTime(msg.ts || nowIso())}</span>`;
         const bubble = document.createElement("div");
         bubble.className = "bubble";
         const isEditing = msg.role === "user" && editingMessageId === msg.id;
@@ -3119,7 +3152,8 @@
         } else {
           answer = r.json?.answer || "Done.";
         }
-        upsertMessage("assistant", answer);
+        const mode = r.ok ? (r.json?.meta?.mode || "") : "";
+        upsertMessage("assistant", answer, mode ? { mode } : {});
         parseKpisFromText(answer);
         renderConversationList();
         renderCurrentConversation();
@@ -3214,6 +3248,10 @@
         if (!resp.ok) {
           const msg = resp.json?.error || resp.raw || "Meta verification failed";
           setStatus("data", `Meta verify failed: ${String(msg).slice(0, 120)}`);
+          if (/rate limit/i.test(String(msg))) {
+            showAlert("Meta rate limit reached. Please retry verification after a few minutes.");
+            return;
+          }
           upsertMessage(
             "assistant",
             `Meta verification failed: ${msg}\n\nPlease refresh META_ACCESS_TOKEN and restart backend.`
@@ -3242,6 +3280,10 @@
           const diag = resp.json?.diagnosis || "GA4 verification failed";
           const actions = Array.isArray(resp.json?.next_actions) ? resp.json.next_actions : [];
           setStatus("data", `GA4 verify failed: ${String(msg).slice(0, 120)}`);
+          if (/rate limit/i.test(String(msg))) {
+            showAlert("GA4 rate limit reached. Please retry verification after a few minutes.");
+            return;
+          }
           const lines = [`GA4 debug failed: ${msg}`, "", `Reason: ${diag}`];
           if (actions.length) {
             lines.push("", "Next actions:");
@@ -3425,7 +3467,7 @@
       updateScrollTopVisibility();
       setInterval(() => {
         if (!document.hidden) fetchLiveKpis();
-      }, 300000);
+      }, 1800000);
     </script>
   </body>
 </html>

@@ -66,6 +66,32 @@ function getModel(): string {
   return process.env.OPENAI_MODEL || "gpt-4o-mini";
 }
 
+function getOpenAIMaxTokens(): number {
+  const raw = Number(process.env.OPENAI_MAX_TOKENS || 220);
+  if (!Number.isFinite(raw)) return 220;
+  return Math.max(80, Math.min(800, Math.floor(raw)));
+}
+
+function getOpenAITemperature(): number {
+  const raw = Number(process.env.OPENAI_TEMPERATURE || 0.2);
+  if (!Number.isFinite(raw)) return 0.2;
+  return Math.max(0, Math.min(1, raw));
+}
+
+function getOpenAIMinToolCalls(): number {
+  const raw = Number(process.env.OPENAI_MIN_TOOL_CALLS || 2);
+  if (!Number.isFinite(raw)) return 2;
+  return Math.max(1, Math.min(6, Math.floor(raw)));
+}
+
+function isForceOpenAIForAll(): boolean {
+  return String(process.env.FORCE_OPENAI_FOR_ALL || "false").toLowerCase() === "true";
+}
+
+function isStrictBrandScopeOnly(): boolean {
+  return String(process.env.STRICT_BRAND_SCOPE_ONLY || "false").toLowerCase() === "true";
+}
+
 function getGeminiModel(): string {
   const raw = process.env.GEMINI_MODEL || "gemini-2.0-flash";
   return raw.replace(/^models\//, "");
@@ -207,7 +233,8 @@ async function askOpenAIDirect(message: string): Promise<string> {
   if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY not set");
   const resp = await openai.chat.completions.create({
     model: getModel(),
-    temperature: 0.4,
+    temperature: getOpenAITemperature(),
+    max_tokens: getOpenAIMaxTokens(),
     messages: [
       {
         role: "system",
@@ -220,6 +247,82 @@ async function askOpenAIDirect(message: string): Promise<string> {
   const text = resp.choices?.[0]?.message?.content?.trim() || "";
   if (!text) throw new Error("OpenAI returned empty response");
   return text;
+}
+
+function safeParseJsonObject(input: string): Record<string, any> {
+  try {
+    const parsed = JSON.parse(input);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+async function answerFromOpenAIWithTools(
+  message: string,
+  runTool: (name: string, args?: Record<string, any>) => Promise<any>,
+  brandAccounts?: { coxwell?: string; altis?: string },
+  minToolCalls = 1
+): Promise<{ answer: string; tools: Array<{ name: string; result: any }>; mode: string } | null> {
+  if (!process.env.OPENAI_API_KEY) return null;
+
+  const systemParts = [
+    "You are a marketing analytics assistant.",
+    "For marketing/Meta/GA4/Instagram questions, call relevant tools first, then answer using tool results only.",
+    "If user asks for both Altis and Coxwell, fetch both brands and present a clear table.",
+    "Keep response concise, numeric, and directly actionable.",
+  ];
+  if (brandAccounts?.coxwell || brandAccounts?.altis) {
+    systemParts.push(
+      `Brand account mapping: Coxwell=${brandAccounts?.coxwell || "-"}, Altis=${brandAccounts?.altis || "-"}`
+    );
+  }
+
+  const tools = getOpenAITools();
+  const messages: any[] = [
+    { role: "system", content: systemParts.join(" ") },
+    { role: "user", content: message },
+  ];
+  const toolResults: Array<{ name: string; result: any }> = [];
+
+  for (let round = 0; round < 4; round++) {
+    const resp = await openai.chat.completions.create({
+      model: getModel(),
+      temperature: getOpenAITemperature(),
+      max_tokens: getOpenAIMaxTokens(),
+      messages,
+      tools,
+      tool_choice: "auto",
+    });
+
+    const assistant = resp.choices?.[0]?.message;
+    if (!assistant) break;
+
+    const calls = Array.isArray(assistant.tool_calls) ? assistant.tool_calls : [];
+    if (!calls.length) {
+      const answer = String(assistant.content || "").trim();
+      if (!answer) return null;
+      if (toolResults.length < minToolCalls) return null;
+      return { answer, tools: toolResults, mode: "openai-tool-calling" };
+    }
+
+    messages.push(assistant);
+
+    for (const tc of calls) {
+      if (tc.type !== "function") continue;
+      const name = String(tc.function?.name || "");
+      const args = safeParseJsonObject(String(tc.function?.arguments || "{}"));
+      const result = await runTool(name, args);
+      toolResults.push({ name, result });
+      messages.push({
+        role: "tool",
+        tool_call_id: tc.id,
+        content: JSON.stringify(result),
+      });
+    }
+  }
+
+  return null;
 }
 
 function getAvailableProviders(): Array<"openai" | "gemini" | "claude"> {
@@ -744,10 +847,18 @@ function hasMetaAdsIntent(message: string): boolean {
 function normalizeMessage(message: string): string {
   return message
     .toLowerCase()
+    .replace(/[.,!?;:()[\]{}"']/g, " ")
     .replace(/\badd\b/g, "ad")
     .replace(/\badds\b/g, "ads")
     .replace(/\bspen\b/g, "spend")
     .replace(/\bspnd\b/g, "spend")
+    .replace(/\bandn\b/g, "and")
+    .replace(/\bwhic\b/g, "which")
+    .replace(/\bperfrom\b/g, "perform")
+    .replace(/\bperfom\b/g, "perform")
+    .replace(/\bperformnce\b/g, "performance")
+    .replace(/\brell\b/g, "reel")
+    .replace(/\btabular\b/g, "table")
     .replace(/\bmontly\b/g, "monthly")
     .replace(/\bmonhth?\b/g, "month")
     .replace(/\bmnth\b/g, "month")
@@ -756,7 +867,17 @@ function normalizeMessage(message: string): string {
     .replace(/\byday\b/g, "yesterday")
     .replace(/\byest\b/g, "yesterday")
     .replace(/\bga ?4\b/g, "ga4")
+    .replace(/\baltish\b/g, "altis")
+    .replace(/\balthis\b/g, "altis")
+    .replace(/\baltiz\b/g, "altis")
+    .replace(/\bcoxwel\b/g, "coxwell")
+    .replace(/\bcoxweel\b/g, "coxwell")
+    .replace(/\bcoxvell\b/g, "coxwell")
+    .replace(/\bcoxwelll\b/g, "coxwell")
     .replace(/\binstgram\b/g, "instagram")
+    .replace(/\binstagarm\b/g, "instagram")
+    .replace(/\binstagrm\b/g, "instagram")
+    .replace(/\binstaagrm\b/g, "instagram")
     .replace(/\binsta gram\b/g, "instagram")
     .replace(/\s+/g, " ")
     .trim();
@@ -764,9 +885,42 @@ function normalizeMessage(message: string): string {
 
 function detectBrandFromMessage(message: string): "coxwell" | "altis" | null {
   const m = normalizeMessage(message);
-  if (/\baltis\b/.test(m)) return "altis";
-  if (/\bcoxwell\b/.test(m)) return "coxwell";
+  if (/\b(?:altis|altish|althis|altiz)\b/.test(m)) return "altis";
+  if (/\b(?:coxwell|coxwel|coxweel|coxvell)\b/.test(m)) return "coxwell";
   return null;
+}
+
+function isDualBrandMetaIntent(message: string): boolean {
+  const m = normalizeMessage(message);
+  const hasBothBrands = /\baltis\b/.test(m) && /\bcoxwell\b/.test(m);
+  const hasMeta = /\b(?:meta|facebook|ads?|campaign|spend|leads?)\b/.test(m);
+  return hasBothBrands && hasMeta;
+}
+
+function isDualBrandInstagramIntent(message: string): boolean {
+  const m = normalizeMessage(message);
+  const hasBothBrands = /\baltis\b/.test(m) && /\bcoxwell\b/.test(m);
+  const hasInstagramSignal =
+    /\b(?:instagram|insta|reels?|posts?|top|best|reach|views?|plays?|saves?)\b/.test(m);
+  return hasBothBrands && hasInstagramSignal;
+}
+
+function isInstagramInsightsIntent(message: string): boolean {
+  const m = normalizeMessage(message);
+  const hasInstagramSignal = /\b(?:instagram|insta|reels?|posts?)\b/.test(m);
+  const hasInsightsSignal =
+    /\b(?:insights?|perform|performance|best|top|reach|views?|plays?|saves?|good|currently|current)\b/.test(
+      m
+    );
+  return hasInstagramSignal && hasInsightsSignal;
+}
+
+function isInstagramAuditListIntent(message: string): boolean {
+  const m = normalizeMessage(message);
+  const hasInstagramSignal = /\b(?:instagram|insta|reels?|posts?)\b/.test(m);
+  const hasListSignal = /\b(?:all|list|every|full|audit|review|analysis)\b/.test(m);
+  const hasImproveSignal = /\b(?:not good|worst|weak|improve|better|before posting)\b/.test(m);
+  return hasInstagramSignal && (hasListSignal || hasImproveSignal);
 }
 
 function resolveBrandAwareAccountId(message: string, requestedAccountId?: string): string | undefined {
@@ -855,6 +1009,21 @@ function isMarketingIntent(message: string): boolean {
   return /meta|ga4|instagram|insta|reel|reels|campaign|ad|ads|audience|creative|copy|spend|cpl|cpc|cpa|roas|ctr|landing|conversion|funnel|lead|budget|remarketing|retarget/.test(
     m
   );
+}
+
+function isInstagramIntent(message: string): boolean {
+  const m = normalizeMessage(message);
+  return /\b(?:instagram|insta|reels?|posts?|reach|views?|plays?|saves?)\b/.test(m);
+}
+
+function isMetaIntent(message: string): boolean {
+  const m = normalizeMessage(message);
+  return /\b(?:meta|facebook|ads?|campaign|spend|leads?|cpl|cpc|cpa)\b/.test(m);
+}
+
+function isGa4Intent(message: string): boolean {
+  const m = normalizeMessage(message);
+  return /\b(?:ga4|analytics|sessions?|active users|traffic|page views|top city)\b/.test(m);
 }
 
 function defaultToolBundleForMessage(message: string): string[] {
@@ -1065,6 +1234,7 @@ function inferToolFromText(text: string): string | null {
 function detectBestCampaignPeriod(message: string): "today" | "this_month" | "maximum" {
   const m = normalizeMessage(message);
   if (/\b(ever|all time|lifetime|maximum|overall)\b/.test(m)) return "maximum";
+  if (/\b(last 30 days|30 days|last month)\b/.test(m)) return "this_month";
   if (/\b(month|monthly|this month)\b/.test(m)) return "this_month";
   return "today";
 }
@@ -1248,6 +1418,398 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
       });
     }
 
+    // Instagram audit intent: always fetch full monthly reel list for brand and analyze weak performers.
+    if (isInstagramAuditListIntent(normalizedMessage)) {
+      const requestedBrand = detectBrandFromMessage(normalizedMessage);
+      const accountId =
+        requestedBrand === "altis"
+          ? getAllowedMetaAccountIds()[1] || getAllowedMetaAccountIds()[0] || effectiveMetaAccountId
+          : requestedBrand === "coxwell"
+            ? getAllowedMetaAccountIds()[0] || effectiveMetaAccountId
+            : effectiveMetaAccountId;
+
+      const [overview, reelsLast30] = await Promise.all([
+        runTool("get_instagram_account_overview", { account_id: accountId }),
+        runTool("get_instagram_reels_last_30_days", { account_id: accountId }),
+      ]);
+
+      const rows = Array.isArray(reelsLast30?.top) ? [...reelsLast30.top] : [];
+      if (!rows.length) {
+        const fallbackBest = await runTool("get_instagram_best_reel", {
+          account_id: accountId,
+          period: "maximum",
+        });
+        const best = fallbackBest?.best || null;
+        const payload: ResponsePayload = {
+          ok: true,
+          answer: best
+            ? `No reels found in the last 30 days for ${String(overview?.account?.username || "this account")}. Latest best all-time reel: "${String(
+                best?.caption || "N/A"
+              ).slice(0, 80)}" with ${formatNumber(Number(best?.plays ?? 0))} plays and ${formatNumber(
+                Number(best?.reach ?? 0)
+              )} reach.`
+            : `No reels found for ${String(overview?.account?.username || "this account")} in the last 30 days.`,
+          tools: [
+            { name: "get_instagram_account_overview", result: overview },
+            { name: "get_instagram_reels_last_30_days", result: reelsLast30 },
+            { name: "get_instagram_best_reel", result: fallbackBest },
+          ],
+          meta: { rid, mode: "instagram-audit-no-reels-30d" },
+        };
+        setCachedResponse(responseCacheKey, payload);
+        return res.json(payload);
+      }
+
+      const weak = [...rows]
+        .sort((a: any, b: any) => {
+          const ap = Number(a?.plays ?? 0);
+          const bp = Number(b?.plays ?? 0);
+          if (ap !== bp) return ap - bp;
+          const ar = Number(a?.reach ?? 0);
+          const br = Number(b?.reach ?? 0);
+          return ar - br;
+        })
+        .slice(0, Math.min(10, rows.length));
+
+      const weakTable = [
+        "| # | Plays | Reach | Saves | Likes | Comments | Shares | Caption |",
+        "|---:|---:|---:|---:|---:|---:|---:|---|",
+        ...weak.map((r: any, idx: number) => {
+          const caption = String(r?.caption || "N/A").replace(/\s+/g, " ").trim().slice(0, 70);
+          return `| ${idx + 1} | ${formatNumber(Number(r?.plays ?? 0))} | ${formatNumber(
+            Number(r?.reach ?? 0)
+          )} | ${formatNumber(Number(r?.saved ?? 0))} | ${formatNumber(Number(r?.likes ?? 0))} | ${formatNumber(
+            Number(r?.comments ?? 0)
+          )} | ${formatNumber(Number(r?.shares ?? 0))} | ${caption} |`;
+        }),
+      ].join("\n");
+
+      const avg = (arr: any[], key: string) =>
+        arr.length ? arr.reduce((s, r) => s + Number(r?.[key] ?? 0), 0) / arr.length : 0;
+      const avgPlays = avg(rows, "plays");
+      const avgReach = avg(rows, "reach");
+      const avgShares = avg(rows, "shares");
+
+      const answer = [
+        `Instagram audit for ${String(overview?.account?.username || "account")} (last 30 days)`,
+        `Total reels reviewed: ${formatNumber(rows.length)}`,
+        `Averages: plays ${formatNumber(avgPlays)}, reach ${formatNumber(avgReach)}, shares ${formatNumber(avgShares)}`,
+        "",
+        "Lowest-performing reels:",
+        weakTable,
+        "",
+        "What to improve before posting next reel:",
+        "1. Use stronger hook in first 2 seconds (problem + outcome).",
+        "2. Reuse themes from your top-sharing reels, avoid low-share caption styles.",
+        "3. Keep caption CTA explicit: ask for save/share with one clear benefit.",
+      ].join("\n");
+
+      const payload: ResponsePayload = {
+        ok: true,
+        answer,
+        tools: [
+          { name: "get_instagram_account_overview", result: overview },
+          { name: "get_instagram_reels_last_30_days", result: reelsLast30 },
+        ],
+        meta: { rid, mode: "instagram-audit-list-30d" },
+      };
+      setCachedResponse(responseCacheKey, payload);
+      return res.json(payload);
+    }
+
+    // Strict mode: only Coxwell + Altis real data answers, no generic assistant output.
+    if (isStrictBrandScopeOnly()) {
+      const allowed = getAllowedMetaAccountIds();
+      const coxwellAccountId = String(allowed[0] || "");
+      const altisAccountId = String(allowed[1] || allowed[0] || "");
+
+      if (!coxwellAccountId) {
+        const payload: ResponsePayload = {
+          ok: true,
+          answer: "Strict brand mode is enabled, but Coxwell account id is missing in server configuration.",
+          meta: { rid, mode: "strict-brand-config-missing" },
+        };
+        return res.json(payload);
+      }
+
+      if (isInstagramIntent(normalizedMessage)) {
+        const period = detectBestCampaignPeriod(normalizedMessage);
+        const askedBrand = detectBrandFromMessage(normalizedMessage);
+        const isComparison = /\b(compare|comparison|vs|versus|difference|better|winning)\b/.test(normalizedMessage);
+        const wantsDetailedTable =
+          /\b(table|tabular|all data|every data|full data|detailed|30 days|last 30 days|1 to 30)\b/.test(
+            normalizedMessage
+          );
+
+        const runForBrand = async (brand: "Coxwell" | "Altis", accountId: string) => {
+          const [overview, best] = await Promise.all([
+            runTool("get_instagram_account_overview", { account_id: accountId }),
+            runTool("get_instagram_best_reel", { account_id: accountId, period }),
+          ]);
+          const b = best?.best || {};
+          const plays = Number(b?.plays ?? NaN);
+          const likes = Number(b?.likes ?? NaN);
+          const comments = Number(b?.comments ?? NaN);
+          const shares = Number(b?.shares ?? NaN);
+          const saves = Number(b?.saved ?? NaN);
+          const interactions = [likes, comments, shares, saves].reduce((s, v) => s + (Number.isFinite(v) ? v : 0), 0);
+          const engagementRate = Number.isFinite(plays) && plays > 0
+            ? Number(((interactions / plays) * 100).toFixed(2))
+            : NaN;
+          return {
+            brand,
+            accountId,
+            username: String(overview?.account?.username || "-"),
+            followers: Number(overview?.account?.followers_count ?? NaN),
+            plays,
+            reach: Number(b?.reach ?? NaN),
+            saves,
+            likes,
+            comments,
+            shares,
+            engagementRate,
+            caption: String(b?.caption || "N/A").slice(0, 60),
+            tools: [
+              { name: "get_instagram_account_overview", result: overview },
+              { name: "get_instagram_best_reel", result: best },
+            ],
+          };
+        };
+
+        const rows = askedBrand && !isComparison
+          ? [await runForBrand(askedBrand === "coxwell" ? "Coxwell" : "Altis", askedBrand === "coxwell" ? coxwellAccountId : altisAccountId)]
+          : await Promise.all([
+              runForBrand("Coxwell", coxwellAccountId),
+              runForBrand("Altis", altisAccountId),
+            ]);
+
+        // If user asks single-brand "tabular/every data/30 days", return detailed reel table.
+        if (rows.length === 1 && wantsDetailedTable) {
+          const targetAccountId = rows[0].accountId;
+          const reelsResult = await runTool("get_instagram_reels_last_30_days", { account_id: targetAccountId });
+          const reelRows = Array.isArray(reelsResult?.top) ? reelsResult.top.slice(0, 30) : [];
+          const detailedTable = reelRows.length
+            ? [
+                "| # | Published | Plays | Reach | Saves | Likes | Comments | Shares | Caption | Permalink |",
+                "|---:|---|---:|---:|---:|---:|---:|---:|---|---|",
+                ...reelRows.map((r: any, idx: number) => {
+                  const published = String(r?.published_at || r?.timestamp || "-").slice(0, 10);
+                  const plays = formatNumber(Number(r?.plays ?? 0));
+                  const reach = formatNumber(Number(r?.reach ?? 0));
+                  const saves = formatNumber(Number(r?.saved ?? 0));
+                  const likes = formatNumber(Number(r?.likes ?? 0));
+                  const comments = formatNumber(Number(r?.comments ?? 0));
+                  const shares = formatNumber(Number(r?.shares ?? 0));
+                  const caption = String(r?.caption || "N/A").replace(/\s+/g, " ").trim().slice(0, 70);
+                  const permalink = String(r?.permalink || "-");
+                  return `| ${idx + 1} | ${published} | ${plays} | ${reach} | ${saves} | ${likes} | ${comments} | ${shares} | ${caption} | ${permalink} |`;
+                }),
+              ].join("\n")
+            : "No reels found in the selected 1-30 day window.";
+
+          const detailedAnswer = [
+            `Strict brand data (Instagram, 1-30 days):`,
+            `Brand: ${rows[0].brand} | Account: ${rows[0].accountId} | Username: ${rows[0].username}`,
+            "",
+            `Reels found: ${formatNumber(Number(reelsResult?.reels_count ?? 0))}`,
+            `Totals: Plays ${formatNumber(Number(reelsResult?.total_plays ?? 0))}, Reach ${formatNumber(
+              Number(reelsResult?.total_reach ?? 0)
+            )}, Saves ${formatNumber(Number(reelsResult?.total_saved ?? 0))}`,
+            "",
+            detailedTable,
+          ].join("\n");
+
+          const payload: ResponsePayload = {
+            ok: true,
+            answer: detailedAnswer,
+            tools: [...rows[0].tools, { name: "get_instagram_reels_last_30_days", result: reelsResult }],
+            meta: { rid, mode: "strict-brand-instagram-single-detailed" },
+          };
+          setCachedResponse(responseCacheKey, payload);
+          return res.json(payload);
+        }
+
+        let answer = [
+          `Strict brand data (Instagram, ${period}):`,
+          "",
+          "| Brand | Account | Username | Followers | Best Reel Plays | Best Reel Reach | Best Reel Saves | Eng. Rate | Best Reel Caption |",
+          "|---|---|---|---:|---:|---:|---:|---:|---|",
+          ...rows.map((r) =>
+            `| ${r.brand} | ${r.accountId} | ${r.username} | ${Number.isFinite(r.followers) ? formatNumber(r.followers) : "-"} | ${Number.isFinite(r.plays) ? formatNumber(r.plays) : "-"} | ${Number.isFinite(r.reach) ? formatNumber(r.reach) : "-"} | ${Number.isFinite(r.saves) ? formatNumber(r.saves) : "-"} | ${Number.isFinite(r.engagementRate) ? `${formatNumber(r.engagementRate)}%` : "-"} | ${r.caption} |`
+          ),
+        ].join("\n");
+
+        if (rows.length === 2) {
+          const [a, b] = rows;
+          const winner = (Number(a.plays || 0) + Number(a.reach || 0)) >= (Number(b.plays || 0) + Number(b.reach || 0)) ? a : b;
+          const runner = winner.brand === a.brand ? b : a;
+          answer += [
+            "",
+            "Insights:",
+            `1. Winner right now: ${winner.brand} (higher combined plays+reach than ${runner.brand}).`,
+            `2. ${winner.brand} engagement rate on best reel: ${Number.isFinite(winner.engagementRate) ? `${formatNumber(winner.engagementRate)}%` : "N/A"}.`,
+            `3. ${runner.brand} can improve by testing variants of "${winner.caption.slice(0, 30)}..." style hooks.`,
+          ].join("\n");
+        } else {
+          const r = rows[0];
+          answer += [
+            "",
+            "Insights:",
+            `1. Best reel engagement rate: ${Number.isFinite(r.engagementRate) ? `${formatNumber(r.engagementRate)}%` : "N/A"}.`,
+            `2. Interaction mix: likes ${Number.isFinite(r.likes) ? formatNumber(r.likes) : "-"}, comments ${Number.isFinite(r.comments) ? formatNumber(r.comments) : "-"}, shares ${Number.isFinite(r.shares) ? formatNumber(r.shares) : "-"}, saves ${Number.isFinite(r.saves) ? formatNumber(r.saves) : "-"}.`,
+            `3. Caption/hook reference: "${r.caption}".`,
+          ].join("\n");
+        }
+
+        const payload: ResponsePayload = {
+          ok: true,
+          answer,
+          tools: rows.flatMap((r) => r.tools),
+          meta: { rid, mode: rows.length === 2 ? "strict-brand-instagram-dual" : "strict-brand-instagram-single" },
+        };
+        setCachedResponse(responseCacheKey, payload);
+        return res.json(payload);
+      }
+
+      if (isMetaIntent(normalizedMessage)) {
+        const runForBrand = async (brand: "Coxwell" | "Altis", accountId: string) => {
+          const [spendToday, leadsToday, spend7d, leads7d] = await Promise.all([
+            runTool("get_meta_spend_today", { account_id: accountId }),
+            runTool("get_meta_leads_today", { account_id: accountId }),
+            runTool("get_meta_spend_last_7d", { account_id: accountId }),
+            runTool("get_meta_leads_last_7d", { account_id: accountId }),
+          ]);
+          return {
+            brand,
+            accountId,
+            spendToday: Number(spendToday?.spend ?? NaN),
+            leadsToday: Number(leadsToday?.leads ?? NaN),
+            spend7d: Number(spend7d?.spend ?? NaN),
+            leads7d: Number(leads7d?.leads ?? NaN),
+            tools: [
+              { name: "get_meta_spend_today", result: spendToday },
+              { name: "get_meta_leads_today", result: leadsToday },
+              { name: "get_meta_spend_last_7d", result: spend7d },
+              { name: "get_meta_leads_last_7d", result: leads7d },
+            ],
+          };
+        };
+
+        const [cw, al] = await Promise.all([
+          runForBrand("Coxwell", coxwellAccountId),
+          runForBrand("Altis", altisAccountId),
+        ]);
+        const answer = [
+          "Strict brand data (Meta):",
+          "",
+          "| Brand | Account | Spend Today | Leads Today | Spend Last 7D | Leads Last 7D |",
+          "|---|---|---:|---:|---:|---:|",
+          `| Coxwell | ${cw.accountId} | ${Number.isFinite(cw.spendToday) ? formatCurrency(cw.spendToday, "INR") : "-"} | ${Number.isFinite(cw.leadsToday) ? formatNumber(cw.leadsToday) : "-"} | ${Number.isFinite(cw.spend7d) ? formatCurrency(cw.spend7d, "INR") : "-"} | ${Number.isFinite(cw.leads7d) ? formatNumber(cw.leads7d) : "-"} |`,
+          `| Altis | ${al.accountId} | ${Number.isFinite(al.spendToday) ? formatCurrency(al.spendToday, "INR") : "-"} | ${Number.isFinite(al.leadsToday) ? formatNumber(al.leadsToday) : "-"} | ${Number.isFinite(al.spend7d) ? formatCurrency(al.spend7d, "INR") : "-"} | ${Number.isFinite(al.leads7d) ? formatNumber(al.leads7d) : "-"} |`,
+        ].join("\n");
+
+        const payload: ResponsePayload = {
+          ok: true,
+          answer,
+          tools: [...cw.tools, ...al.tools],
+          meta: { rid, mode: "strict-brand-meta-dual" },
+        };
+        setCachedResponse(responseCacheKey, payload);
+        return res.json(payload);
+      }
+
+      if (isGa4Intent(normalizedMessage)) {
+        const runForBrand = async (brand: "Coxwell" | "Altis", accountId: string) => {
+          const [activeUsers, sessions] = await Promise.all([
+            runTool("get_ga4_active_users_today", { account_id: accountId }),
+            runTool("get_ga4_sessions_today", { account_id: accountId }),
+          ]);
+          return {
+            brand,
+            accountId,
+            activeUsers: Number(activeUsers?.active_users ?? NaN),
+            sessions: Number(sessions?.sessions ?? NaN),
+            tools: [
+              { name: "get_ga4_active_users_today", result: activeUsers },
+              { name: "get_ga4_sessions_today", result: sessions },
+            ],
+          };
+        };
+
+        const [cw, al] = await Promise.all([
+          runForBrand("Coxwell", coxwellAccountId),
+          runForBrand("Altis", altisAccountId),
+        ]);
+        const answer = [
+          "Strict brand data (GA4):",
+          "",
+          "| Brand | Account | Active Users (Today) | Sessions (Today) |",
+          "|---|---|---:|---:|",
+          `| Coxwell | ${cw.accountId} | ${Number.isFinite(cw.activeUsers) ? formatNumber(cw.activeUsers) : "-"} | ${Number.isFinite(cw.sessions) ? formatNumber(cw.sessions) : "-"} |`,
+          `| Altis | ${al.accountId} | ${Number.isFinite(al.activeUsers) ? formatNumber(al.activeUsers) : "-"} | ${Number.isFinite(al.sessions) ? formatNumber(al.sessions) : "-"} |`,
+        ].join("\n");
+
+        const payload: ResponsePayload = {
+          ok: true,
+          answer,
+          tools: [...cw.tools, ...al.tools],
+          meta: { rid, mode: "strict-brand-ga4-dual" },
+        };
+        setCachedResponse(responseCacheKey, payload);
+        return res.json(payload);
+      }
+
+      const payload: ResponsePayload = {
+        ok: true,
+        answer:
+          "Strict brand mode is enabled. Ask only Coxwell/Altis data questions for Instagram, Meta, or GA4.",
+        meta: { rid, mode: "strict-brand-non-data-blocked" },
+      };
+      return res.json(payload);
+    }
+
+    // Optional global mode: force OpenAI response for all normal chat queries.
+    // Useful when user wants pure ChatGPT-like behavior instead of deterministic tool routing.
+    if (isForceOpenAIForAll() && process.env.OPENAI_API_KEY) {
+      try {
+        const allowed = getAllowedMetaAccountIds();
+        const openaiToolAnswer = await answerFromOpenAIWithTools(
+          userMessage,
+          (name, args = {}) => runTool(name, args),
+          { coxwell: allowed[0], altis: allowed[1] || allowed[0] },
+          1
+        );
+        if (openaiToolAnswer && openaiToolAnswer.tools.length > 0) {
+          const payload: ResponsePayload = {
+            ok: true,
+            answer: `[mode: openai-forced-all+tools | model: ${getModel()}]\n${openaiToolAnswer.answer}`,
+            tools: openaiToolAnswer.tools,
+            meta: { rid, mode: "openai-forced-all-tools" },
+          };
+          setCachedResponse(responseCacheKey, payload);
+          return res.json(payload);
+        }
+
+        const fallbackTools = defaultToolBundleForMessage(normalizedMessage);
+        const toolResults: Array<{ name: string; result: any }> = [];
+        for (const t of fallbackTools) {
+          const result = await runTool(t, {});
+          toolResults.push({ name: t, result });
+        }
+        const answer = buildAdvisorAnswer(normalizedMessage, toolResults);
+        const payload: ResponsePayload = {
+          ok: true,
+          answer: `[mode: openai-forced-all-tools-fallback | model: ${getModel()}]\n${answer}`,
+          tools: toolResults,
+          meta: { rid, mode: "openai-forced-all-tools-fallback" },
+        };
+        setCachedResponse(responseCacheKey, payload);
+        return res.json(payload);
+      } catch (err: any) {
+        console.error("Forced OpenAI mode failed:", err?.message || err);
+      }
+    }
+
     // Comparison-first path: always return exact tabular comparison for compare/vs/trend requests.
     if (isComparisonIntent(normalizedMessage)) {
       const toolsToRun = comparisonToolsForMessage(normalizedMessage);
@@ -1369,18 +1931,243 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
       return res.json(payload);
     }
 
-    // Priority provider router:
-    // If any AI key works (OpenAI/Gemini/Claude), use that first.
-    // If all fail, continue with local tool/prompt fallback.
-    const providerAnswer = await answerFromAnyProvider(userMessage);
-    if (providerAnswer) {
+    // Dual-brand Meta query (Altis + Coxwell), including N-day request.
+    if (isDualBrandMetaIntent(normalizedMessage)) {
+      const days = parseRequestedDays(normalizedMessage) || 5;
+      const allowed = getAllowedMetaAccountIds();
+      const coxwellAccountId = String(allowed[0] || "");
+      const altisAccountId = String(allowed[1] || allowed[0] || "");
+
+      const runForBrand = async (brand: "Coxwell" | "Altis", accountId: string) => {
+        if (!accountId) {
+          return {
+            brand,
+            accountId: "-",
+            spendToday: NaN,
+            leadsToday: NaN,
+            spendLast7d: NaN,
+            leadsLast7d: NaN,
+            spendNdayEstimate: NaN,
+            leadsNdayEstimate: NaN,
+          };
+        }
+        const [spendToday, leadsToday, spendLast7d, leadsLast7d] = await Promise.all([
+          runTool("get_meta_spend_today", { account_id: accountId }),
+          runTool("get_meta_leads_today", { account_id: accountId }),
+          runTool("get_meta_spend_last_7d", { account_id: accountId }),
+          runTool("get_meta_leads_last_7d", { account_id: accountId }),
+        ]);
+        const spendTodayValue = Number(spendToday?.spend ?? NaN);
+        const leadsTodayValue = Number(leadsToday?.leads ?? NaN);
+        const spendLast7dValue = Number(spendLast7d?.spend ?? NaN);
+        const leadsLast7dValue = Number(leadsLast7d?.leads ?? NaN);
+        const spendNdayEstimate = Number.isFinite(spendLast7dValue)
+          ? Number(((spendLast7dValue / 7) * days).toFixed(2))
+          : NaN;
+        const leadsNdayEstimate = Number.isFinite(leadsLast7dValue)
+          ? Number(((leadsLast7dValue / 7) * days).toFixed(0))
+          : NaN;
+        return {
+          brand,
+          accountId,
+          spendToday: spendTodayValue,
+          leadsToday: leadsTodayValue,
+          spendLast7d: spendLast7dValue,
+          leadsLast7d: leadsLast7dValue,
+          spendNdayEstimate,
+          leadsNdayEstimate,
+        };
+      };
+
+      const [coxwell, altis] = await Promise.all([
+        runForBrand("Coxwell", coxwellAccountId),
+        runForBrand("Altis", altisAccountId),
+      ]);
+
+      const answer = [
+        `Meta performance snapshot for Altis and Coxwell (${days}-day view):`,
+        "",
+        "| Brand | Account | Spend Today | Leads Today | Spend Last 7D | Leads Last 7D | Est. Spend (" + days + "D) | Est. Leads (" + days + "D) |",
+        "|---|---|---:|---:|---:|---:|---:|---:|",
+        `| Coxwell | ${coxwell.accountId} | ${Number.isFinite(coxwell.spendToday) ? formatCurrency(coxwell.spendToday, "INR") : "-"} | ${Number.isFinite(coxwell.leadsToday) ? formatNumber(coxwell.leadsToday) : "-"} | ${Number.isFinite(coxwell.spendLast7d) ? formatCurrency(coxwell.spendLast7d, "INR") : "-"} | ${Number.isFinite(coxwell.leadsLast7d) ? formatNumber(coxwell.leadsLast7d) : "-"} | ${Number.isFinite(coxwell.spendNdayEstimate) ? formatCurrency(coxwell.spendNdayEstimate, "INR") : "-"} | ${Number.isFinite(coxwell.leadsNdayEstimate) ? formatNumber(coxwell.leadsNdayEstimate) : "-"} |`,
+        `| Altis | ${altis.accountId} | ${Number.isFinite(altis.spendToday) ? formatCurrency(altis.spendToday, "INR") : "-"} | ${Number.isFinite(altis.leadsToday) ? formatNumber(altis.leadsToday) : "-"} | ${Number.isFinite(altis.spendLast7d) ? formatCurrency(altis.spendLast7d, "INR") : "-"} | ${Number.isFinite(altis.leadsLast7d) ? formatNumber(altis.leadsLast7d) : "-"} | ${Number.isFinite(altis.spendNdayEstimate) ? formatCurrency(altis.spendNdayEstimate, "INR") : "-"} | ${Number.isFinite(altis.leadsNdayEstimate) ? formatNumber(altis.leadsNdayEstimate) : "-"} |`,
+        "",
+        `Note: ${days}-day values are estimated from each brand's last 7 days run-rate.`,
+      ].join("\n");
+
       const payload: ResponsePayload = {
         ok: true,
-        answer: providerAnswer.answer,
-        meta: { rid, mode: providerAnswer.mode },
+        answer,
+        meta: { rid, mode: "dual-brand-meta-days" },
       };
       setCachedResponse(responseCacheKey, payload);
       return res.json(payload);
+    }
+
+    // Dual-brand Instagram query (Altis + Coxwell): always return direct data table.
+    if (isDualBrandInstagramIntent(normalizedMessage)) {
+      const period = detectBestCampaignPeriod(normalizedMessage);
+      const allowed = getAllowedMetaAccountIds();
+      const coxwellAccountId = String(allowed[0] || "");
+      const altisAccountId = String(allowed[1] || allowed[0] || "");
+
+      const runForBrand = async (brand: "Coxwell" | "Altis", accountId: string) => {
+        if (!accountId) {
+          return {
+            brand,
+            accountId: "-",
+            username: "-",
+            followers: NaN,
+            mediaCount: NaN,
+            bestCaption: "-",
+            bestPlays: NaN,
+            bestReach: NaN,
+            bestSaves: NaN,
+            tools: [] as Array<{ name: string; result: any }>,
+          };
+        }
+
+        const [overview, bestReel] = await Promise.all([
+          runTool("get_instagram_account_overview", { account_id: accountId }),
+          runTool("get_instagram_best_reel", { account_id: accountId, period }),
+        ]);
+
+        const best = bestReel?.best || {};
+        const caption = String(best?.caption || "Untitled Reel").trim();
+        return {
+          brand,
+          accountId,
+          username: String(overview?.account?.username || "").trim() || "-",
+          followers: Number(overview?.account?.followers_count ?? NaN),
+          mediaCount: Number(overview?.account?.media_count ?? NaN),
+          bestCaption: caption ? caption.slice(0, 50) : "-",
+          bestPlays: Number(best?.plays ?? NaN),
+          bestReach: Number(best?.reach ?? NaN),
+          bestSaves: Number(best?.saved ?? NaN),
+          tools: [
+            { name: "get_instagram_account_overview", result: overview },
+            { name: "get_instagram_best_reel", result: bestReel },
+          ],
+        };
+      };
+
+      const [coxwell, altis] = await Promise.all([
+        runForBrand("Coxwell", coxwellAccountId),
+        runForBrand("Altis", altisAccountId),
+      ]);
+
+      const windowLabel =
+        period === "maximum" ? "all time" : period === "this_month" ? "this month" : "today";
+      const answer = [
+        `Instagram top-post snapshot for Coxwell and Altis (${windowLabel}):`,
+        "",
+        "| Brand | Account | Username | Followers | Media | Top Reel Plays | Top Reel Reach | Top Reel Saves | Top Reel Caption |",
+        "|---|---|---|---:|---:|---:|---:|---:|---|",
+        `| Coxwell | ${coxwell.accountId} | ${coxwell.username} | ${Number.isFinite(coxwell.followers) ? formatNumber(coxwell.followers) : "-"} | ${Number.isFinite(coxwell.mediaCount) ? formatNumber(coxwell.mediaCount) : "-"} | ${Number.isFinite(coxwell.bestPlays) ? formatNumber(coxwell.bestPlays) : "-"} | ${Number.isFinite(coxwell.bestReach) ? formatNumber(coxwell.bestReach) : "-"} | ${Number.isFinite(coxwell.bestSaves) ? formatNumber(coxwell.bestSaves) : "-"} | ${coxwell.bestCaption} |`,
+        `| Altis | ${altis.accountId} | ${altis.username} | ${Number.isFinite(altis.followers) ? formatNumber(altis.followers) : "-"} | ${Number.isFinite(altis.mediaCount) ? formatNumber(altis.mediaCount) : "-"} | ${Number.isFinite(altis.bestPlays) ? formatNumber(altis.bestPlays) : "-"} | ${Number.isFinite(altis.bestReach) ? formatNumber(altis.bestReach) : "-"} | ${Number.isFinite(altis.bestSaves) ? formatNumber(altis.bestSaves) : "-"} | ${altis.bestCaption} |`,
+      ].join("\n");
+
+      const payload: ResponsePayload = {
+        ok: true,
+        answer,
+        tools: [...coxwell.tools, ...altis.tools],
+        meta: { rid, mode: `dual-brand-instagram-${period}` },
+      };
+      setCachedResponse(responseCacheKey, payload);
+      return res.json(payload);
+    }
+
+    // Single-brand Instagram insights query: always return direct tool data (no OpenAI dependency).
+    if (isInstagramInsightsIntent(normalizedMessage)) {
+      const period = detectBestCampaignPeriod(normalizedMessage);
+      const periodTool = period === "this_month" || period === "maximum"
+        ? "get_instagram_reels_month"
+        : "get_instagram_reels_today";
+
+      const [overview, bestReel, reels] = await Promise.all([
+        runTool("get_instagram_account_overview", { account_id: effectiveMetaAccountId }),
+        runTool("get_instagram_best_reel", { account_id: effectiveMetaAccountId, period }),
+        runTool(periodTool, { account_id: effectiveMetaAccountId }),
+      ]);
+
+      const windowLabel =
+        period === "maximum" ? "all time" : period === "this_month" ? "this month" : "today";
+      const account = overview?.account || {};
+      const best = bestReel?.best || {};
+      const rows = Array.isArray(reels?.top) ? reels.top.slice(0, 5) : [];
+      const topRows = rows.length
+        ? rows
+            .map((r: any, idx: number) => {
+              const caption = String(r?.caption || "Untitled Reel").replace(/\s+/g, " ").trim().slice(0, 44);
+              const plays = formatNumber(Number(r?.plays ?? 0));
+              const reach = formatNumber(Number(r?.reach ?? 0));
+              const saved = formatNumber(Number(r?.saved ?? 0));
+              return `${idx + 1}. ${caption} | plays ${plays}, reach ${reach}, saves ${saved}`;
+            })
+            .join("\n")
+        : "No reel rows returned for this window.";
+
+      const answer = [
+        `Instagram insights snapshot (${windowLabel})`,
+        `Account: ${String(account?.username || "(unknown)")}`,
+        `Followers: ${formatNumber(Number(account?.followers_count ?? 0))}, Following: ${formatNumber(Number(account?.follows_count ?? 0))}, Media: ${formatNumber(Number(account?.media_count ?? 0))}`,
+        `Best reel: ${String(best?.caption || "N/A").slice(0, 70)}`,
+        `Best reel metrics: plays ${formatNumber(Number(best?.plays ?? 0))}, reach ${formatNumber(Number(best?.reach ?? 0))}, saves ${formatNumber(Number(best?.saved ?? 0))}, likes ${formatNumber(Number(best?.likes ?? 0))}, comments ${formatNumber(Number(best?.comments ?? 0))}, shares ${formatNumber(Number(best?.shares ?? 0))}`,
+        "",
+        "Top reels:",
+        topRows,
+      ].join("\n");
+
+      const payload: ResponsePayload = {
+        ok: true,
+        answer,
+        tools: [
+          { name: "get_instagram_account_overview", result: overview },
+          { name: "get_instagram_best_reel", result: bestReel },
+          { name: periodTool, result: reels },
+        ],
+        meta: { rid, mode: `direct-instagram-insights-${period}` },
+      };
+      setCachedResponse(responseCacheKey, payload);
+      return res.json(payload);
+    }
+
+    // OpenAI tool-calling path for marketing questions:
+    // OpenAI fetches real data via tools first, then writes answer.
+    if (isMarketingIntent(normalizedMessage) && process.env.OPENAI_API_KEY) {
+      const allowed = getAllowedMetaAccountIds();
+      const openaiToolAnswer = await answerFromOpenAIWithTools(
+        userMessage,
+        (name, args = {}) => runTool(name, args),
+        { coxwell: allowed[0], altis: allowed[1] || allowed[0] },
+        getOpenAIMinToolCalls()
+      );
+      if (openaiToolAnswer && openaiToolAnswer.tools.length > 0) {
+        const payload: ResponsePayload = {
+          ok: true,
+          answer: openaiToolAnswer.answer,
+          tools: openaiToolAnswer.tools,
+          meta: { rid, mode: openaiToolAnswer.mode },
+        };
+        setCachedResponse(responseCacheKey, payload);
+        return res.json(payload);
+      }
+    }
+
+    // Priority provider router:
+    // If any AI key works (OpenAI/Gemini/Claude), use that first.
+    // If all fail, continue with local tool/prompt fallback.
+    if (!isMarketingIntent(normalizedMessage)) {
+      const providerAnswer = await answerFromAnyProvider(userMessage);
+      if (providerAnswer) {
+        const payload: ResponsePayload = {
+          ok: true,
+          answer: providerAnswer.answer,
+          meta: { rid, mode: providerAnswer.mode },
+        };
+        setCachedResponse(responseCacheKey, payload);
+        return res.json(payload);
+      }
     }
 
     // ✅ Fallback: mapping → tools

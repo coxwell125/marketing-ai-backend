@@ -88,15 +88,26 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
   next();
 });
 
-// lightweight in-memory rate limiter by api-key/ip
+// lightweight in-memory rate limiter by api-key/ip with per-route buckets
 const RATE_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS || 60_000);
 const RATE_MAX = Number(process.env.RATE_LIMIT_MAX || 120);
+const RATE_MAX_CHAT = Number(process.env.RATE_LIMIT_MAX_CHAT || 120);
+const RATE_MAX_TOOLS = Number(process.env.RATE_LIMIT_MAX_TOOLS || 400);
 const rateState = new Map<string, { count: number; resetAt: number }>();
+
+function getRateBucket(req: Request): "chat" | "tools" | "other" {
+  const p = String(req.path || "");
+  if (p.startsWith("/api/chat")) return "chat";
+  if (p.startsWith("/api/tools")) return "tools";
+  return "other";
+}
 
 app.use((req: Request, res: Response, next: NextFunction) => {
   const apiKey = req.header("x-api-key") || "";
   const ip = req.ip || req.socket.remoteAddress || "unknown";
-  const key = `${apiKey || "anon"}|${ip}`;
+  const bucket = getRateBucket(req);
+  const key = `${apiKey || "anon"}|${ip}|${bucket}`;
+  const bucketMax = bucket === "tools" ? RATE_MAX_TOOLS : bucket === "chat" ? RATE_MAX_CHAT : RATE_MAX;
   const now = Date.now();
   const curr = rateState.get(key);
 
@@ -106,8 +117,13 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   }
 
   curr.count += 1;
-  if (curr.count > RATE_MAX) {
-    return res.status(429).json({ ok: false, error: "Rate limit exceeded" });
+  if (curr.count > bucketMax) {
+    return res.status(429).json({
+      ok: false,
+      error: "Rate limit exceeded",
+      bucket,
+      retry_after_seconds: Math.max(1, Math.ceil((curr.resetAt - now) / 1000)),
+    });
   }
 
   return next();

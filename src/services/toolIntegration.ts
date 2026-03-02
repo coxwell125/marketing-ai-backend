@@ -11,6 +11,7 @@ import {
   getMetaBestCampaign,
   getInstagramReelsToday,
   getInstagramReelsMonth,
+  getInstagramReelsLast30Days,
   getInstagramBestReel,
   getInstagramAccountOverview,
 } from "./metaApi";
@@ -244,6 +245,33 @@ function makeLocalMock(toolName: string, args: AnyJson = {}, reason = "Fallback 
       likes: stableNumber(`${toolName}|likes|${monthStart}|${idx + 1}`, 60, 2400),
       comments: stableNumber(`${toolName}|comments|${monthStart}|${idx + 1}`, 2, 260),
       shares: stableNumber(`${toolName}|shares|${monthStart}|${idx + 1}`, 2, 300),
+    }));
+    rows.sort((a, b) => b.plays - a.plays);
+    return {
+      ok: true,
+      tool: toolName,
+      timezone: "Asia/Kolkata",
+      as_of_ist: asOf,
+      reels_count: rows.length,
+      total_plays: rows.reduce((s, r) => s + r.plays, 0),
+      total_reach: rows.reduce((s, r) => s + r.reach, 0),
+      total_saved: rows.reduce((s, r) => s + r.saved, 0),
+      top: rows,
+      _mock: { used: true, reason },
+    };
+  }
+  if (toolName === "get_instagram_reels_last_30_days") {
+    const rows = Array.from({ length: 10 }).map((_, idx) => ({
+      media_id: `reel_l30_${idx + 1}`,
+      caption: `Sample Reel L30 ${idx + 1}`,
+      permalink: `https://instagram.com/reel/l30_${idx + 1}`,
+      published_at: asOf,
+      plays: stableNumber(`${toolName}|plays|${today}|${idx + 1}`, 800, 22000),
+      reach: stableNumber(`${toolName}|reach|${today}|${idx + 1}`, 700, 19000),
+      saved: stableNumber(`${toolName}|saved|${today}|${idx + 1}`, 15, 1100),
+      likes: stableNumber(`${toolName}|likes|${today}|${idx + 1}`, 40, 2100),
+      comments: stableNumber(`${toolName}|comments|${today}|${idx + 1}`, 1, 260),
+      shares: stableNumber(`${toolName}|shares|${today}|${idx + 1}`, 1, 300),
     }));
     rows.sort((a, b) => b.plays - a.plays);
     return {
@@ -739,6 +767,19 @@ export const toolDefs: ToolDef[] = [
     },
     handler: async (args) =>
       callToolWithFallback("get_instagram_reels_month", args || {}, () => getInstagramReelsMonth(args?.account_id)),
+  },
+  {
+    name: "get_instagram_reels_last_30_days",
+    description: "Returns Instagram Reels performance for the last 30 days.",
+    inputSchema: {
+      type: "object",
+      properties: { account_id: { type: "string" } },
+      additionalProperties: false,
+    },
+    handler: async (args) =>
+      callToolWithFallback("get_instagram_reels_last_30_days", args || {}, () =>
+        getInstagramReelsLast30Days(args?.account_id)
+      ),
   },
   {
     name: "get_instagram_best_reel",

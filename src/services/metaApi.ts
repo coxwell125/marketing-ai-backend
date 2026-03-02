@@ -753,12 +753,25 @@ export type InstagramReelsMonthResult = {
   top: IgReelRow[];
 };
 
+export type InstagramReelsLast30DaysResult = {
+  ok: true;
+  tool: "get_instagram_reels_last_30_days";
+  timezone: "Asia/Kolkata";
+  as_of_ist: string;
+  reels_count: number;
+  total_plays: number;
+  total_reach: number;
+  total_saved: number;
+  top: IgReelRow[];
+};
+
 export type InstagramBestReelResult = {
   ok: true;
   tool: "get_instagram_best_reel";
   timezone: "Asia/Kolkata";
   as_of_ist: string;
   window: "today" | "this_month" | "maximum";
+  requested_window?: "today" | "this_month" | "maximum";
   best: IgReelRow | null;
   top: IgReelRow[];
 };
@@ -813,6 +826,28 @@ export async function getInstagramReelsMonth(accountId?: string): Promise<Instag
   };
 }
 
+export async function getInstagramReelsLast30Days(
+  accountId?: string
+): Promise<InstagramReelsLast30DaysResult> {
+  const now = new Date();
+  const sinceDate = new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000);
+  const since = formatYMDInIST(sinceDate);
+  const until = formatYMDInIST(now);
+  const reels = await fetchIgReelsForRange(accountId, since, until);
+  reels.sort((a, b) => b.plays - a.plays || b.reach - a.reach);
+  return {
+    ok: true,
+    tool: "get_instagram_reels_last_30_days",
+    timezone: "Asia/Kolkata",
+    as_of_ist: istNowIso(),
+    reels_count: reels.length,
+    total_plays: reels.reduce((s, r) => s + r.plays, 0),
+    total_reach: reels.reduce((s, r) => s + r.reach, 0),
+    total_saved: reels.reduce((s, r) => s + r.saved, 0),
+    top: reels.slice(0, 30),
+  };
+}
+
 export async function getInstagramAccountOverview(accountId?: string): Promise<InstagramAccountOverviewResult> {
   const env = getInstagramEnv(accountId);
   const igId = getInstagramBusinessAccountId(accountId);
@@ -844,25 +879,47 @@ export async function getInstagramBestReel(
   accountId?: string,
   period: "today" | "this_month" | "maximum" = "today"
 ): Promise<InstagramBestReelResult> {
-  let since = firstDayOfMonthInIST();
-  let until = formatYMDInIST(new Date());
-  if (period === "today") {
-    const r = todayDatePresetForIST();
-    since = r.since;
-    until = r.until;
-  } else if (period === "maximum") {
-    since = "2010-01-01";
-    until = formatYMDInIST(new Date());
+  const today = todayDatePresetForIST();
+  const monthSince = firstDayOfMonthInIST();
+  const nowYmd = formatYMDInIST(new Date());
+
+  const windowRanges: Record<"today" | "this_month" | "maximum", { since: string; until: string }> = {
+    today: { since: today.since, until: today.until },
+    this_month: { since: monthSince, until: nowYmd },
+    maximum: { since: "2010-01-01", until: nowYmd },
+  };
+
+  const attemptOrder: Array<"today" | "this_month" | "maximum"> =
+    period === "today"
+      ? ["today", "this_month", "maximum"]
+      : period === "this_month"
+        ? ["this_month", "maximum"]
+        : ["maximum"];
+
+  let usedWindow: "today" | "this_month" | "maximum" = period;
+  let reels: IgReelRow[] = [];
+  for (const w of attemptOrder) {
+    const r = windowRanges[w];
+    const items = await fetchIgReelsForRange(accountId, r.since, r.until);
+    if (items.length > 0) {
+      reels = items;
+      usedWindow = w;
+      break;
+    }
+    if (w === attemptOrder[attemptOrder.length - 1]) {
+      reels = items;
+      usedWindow = w;
+    }
   }
 
-  const reels = await fetchIgReelsForRange(accountId, since, until);
   reels.sort((a, b) => b.plays - a.plays || b.reach - a.reach || b.saved - a.saved);
   return {
     ok: true,
     tool: "get_instagram_best_reel",
     timezone: "Asia/Kolkata",
     as_of_ist: istNowIso(),
-    window: period,
+    window: usedWindow,
+    requested_window: period,
     best: reels[0] || null,
     top: reels.slice(0, 10),
   };
