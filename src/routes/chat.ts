@@ -93,6 +93,10 @@ function isStrictBrandScopeOnly(): boolean {
   return String(process.env.STRICT_BRAND_SCOPE_ONLY || "false").toLowerCase() === "true";
 }
 
+function isHybridNarrativeEnabled(): boolean {
+  return String(process.env.HYBRID_NARRATIVE_MODE || "true").toLowerCase() !== "false";
+}
+
 function getGeminiModel(): string {
   const raw = process.env.GEMINI_MODEL || "gemini-2.0-flash";
   return raw.replace(/^models\//, "");
@@ -248,6 +252,32 @@ async function askOpenAIDirect(message: string): Promise<string> {
   const text = resp.choices?.[0]?.message?.content?.trim() || "";
   if (!text) throw new Error("OpenAI returned empty response");
   return text;
+}
+
+async function rewriteDraftWithOpenAI(userMessage: string, draft: string): Promise<string | null> {
+  if (!process.env.OPENAI_API_KEY || !isHybridNarrativeEnabled()) return null;
+  try {
+    const resp = await openai.chat.completions.create({
+      model: getModel(),
+      temperature: Math.max(0.55, getOpenAITemperature()),
+      max_tokens: 900,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a senior marketing strategist. Rewrite the provided draft into a clearer, richer answer. Keep all numeric values and facts exactly consistent with the draft. Do not invent metrics. Make the output practical and specific with action-oriented reasoning.",
+        },
+        {
+          role: "user",
+          content: `User request:\n${userMessage}\n\nDraft answer (facts to preserve):\n${draft}`,
+        },
+      ],
+    });
+    const text = String(resp.choices?.[0]?.message?.content || "").trim();
+    return text || null;
+  } catch {
+    return null;
+  }
 }
 
 function safeParseJsonObject(input: string): Record<string, any> {
@@ -1873,17 +1903,18 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
         `2. Pause creative if CPL is above ${formatCurrency(targetCpl * 1.25, "INR")} after 1,500 impressions.`,
         "3. Move budget from low-quality leads (missing budget/timeline answers) to high-intent ad set each evening.",
       ].join("\n");
+      const finalAnswer = (await rewriteDraftWithOpenAI(userMessage, answer)) || answer;
 
       const payload: ResponsePayload = {
         ok: true,
-        answer,
+        answer: finalAnswer,
         tools: [
           { name: "get_meta_best_campaign", result: bestCampaign },
           { name: "get_meta_leads_last_7d", result: leads7 },
           { name: "get_meta_spend_last_7d", result: spend7 },
           { name: "get_instagram_reels_last_30_days", result: reels30 },
         ],
-        meta: { rid, mode: "qualified-lead-campaign-plan-v1" },
+        meta: { rid, mode: finalAnswer === answer ? "qualified-lead-campaign-plan-v1" : "qualified-lead-campaign-plan-v1-hybrid" },
       };
       setCachedResponse(responseCacheKey, payload);
       return res.json(payload);
@@ -1980,10 +2011,11 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
         "4. Retargeting: create 7-day engaged-video audience and run proof/testimonial creative with explicit CTA.",
         "5. Daily control rule: pause any ad after 1,500 impressions if CPL stays above threshold for 2 days.",
       ].join("\n");
+      const finalAnswer = (await rewriteDraftWithOpenAI(userMessage, answer)) || answer;
 
       const payload: ResponsePayload = {
         ok: true,
-        answer,
+        answer: finalAnswer,
         tools: [
           { name: "get_meta_spend_last_7d", result: spend7 },
           { name: "get_meta_leads_last_7d", result: leads7 },
@@ -1991,7 +2023,7 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
           { name: "get_instagram_reels_last_30_days", result: reels30 },
           { name: "get_ga4_report_snapshot", result: ga4Snapshot },
         ],
-        meta: { rid, mode: "weekly-optimization-review-v1" },
+        meta: { rid, mode: finalAnswer === answer ? "weekly-optimization-review-v1" : "weekly-optimization-review-v1-hybrid" },
       };
       setCachedResponse(responseCacheKey, payload);
       return res.json(payload);
