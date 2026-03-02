@@ -784,6 +784,12 @@
           transform: translateX(-105%);
           transition: transform 0.2s ease;
         }
+        /* Tablet drawer: keep part of main area visible instead of full-screen settings takeover */
+        @media (min-width: 700px) and (max-width: 900px) {
+          .sidebar {
+            width: min(390px, 88vw);
+          }
+        }
         .sidebar-head {
           display: flex;
           align-items: center;
@@ -3444,13 +3450,13 @@
       if (el.sidebarBackdrop) {
         el.sidebarBackdrop.onclick = () => {
           setSidebarOpen(false);
-          setMobileNavActive("kpi");
+          setMobileNavActive("chat");
         };
       }
       if (el.closeSidebar) {
         el.closeSidebar.onclick = () => {
           setSidebarOpen(false);
-          setMobileNavActive("kpi");
+          setMobileNavActive("chat");
         };
       }
       if (el.main) {
@@ -3482,7 +3488,8 @@
       renderFolderList();
       renderConversationList();
       renderCurrentConversation();
-      setMobileNavActive("kpi");
+      setSidebarOpen(false);
+      setMobileNavActive("chat");
       fetchLiveKpis();
       updateScrollTopVisibility();
       setInterval(() => {
