@@ -97,6 +97,11 @@ function isHybridNarrativeEnabled(): boolean {
   return String(process.env.HYBRID_NARRATIVE_MODE || "true").toLowerCase() !== "false";
 }
 
+function isOpenAIFirstWithToolsEnabled(): boolean {
+  if (!process.env.OPENAI_API_KEY) return false;
+  return String(process.env.OPENAI_FIRST_WITH_TOOLS || "false").toLowerCase() === "true";
+}
+
 function getGeminiModel(): string {
   const raw = process.env.GEMINI_MODEL || "gemini-2.0-flash";
   return raw.replace(/^models\//, "");
@@ -1473,13 +1478,39 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
     const runTool = (name: string, args: Record<string, any> = {}) =>
       runToolByName(name, args, toolContext);
 
-    if (!/^run\s+/i.test(userMessage) && !wantsComparison) {
+    if (!/^run\s+/i.test(userMessage) && !wantsComparison && !isOpenAIFirstWithToolsEnabled()) {
       const cachedPayload = getCachedResponse(responseCacheKey);
       if (cachedPayload) {
         return res.json({
           ...cachedPayload,
           meta: { ...(cachedPayload.meta || {}), rid, mode: `${cachedPayload.meta?.mode || "cached"}-cache-hit` },
         });
+      }
+    }
+
+    // OpenAI-first architecture: use ChatGPT tool-calling before deterministic routes.
+    // Enable via OPENAI_FIRST_WITH_TOOLS=true.
+    if (isOpenAIFirstWithToolsEnabled()) {
+      try {
+        const allowed = getAllowedMetaAccountIds();
+        const openaiToolAnswer = await answerFromOpenAIWithTools(
+          userMessage,
+          (name, args = {}) => runTool(name, args),
+          { coxwell: allowed[0], altis: allowed[1] || allowed[0] },
+          getOpenAIMinToolCalls()
+        );
+        if (openaiToolAnswer) {
+          const payload: ResponsePayload = {
+            ok: true,
+            answer: openaiToolAnswer.answer,
+            tools: openaiToolAnswer.tools,
+            meta: { rid, mode: "openai-first-tools" },
+          };
+          // Intentionally no response-cache set here to keep responses less templated/repetitive.
+          return res.json(payload);
+        }
+      } catch (err: any) {
+        console.error("OpenAI-first mode failed:", err?.message || err);
       }
     }
 
