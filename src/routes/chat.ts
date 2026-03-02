@@ -850,7 +850,7 @@ function isQualifiedLeadCampaignIntent(message: string): boolean {
   const hasBrand = /\b(?:altis|coxwell)\b/.test(m);
   const hasCampaignSignal = /\b(?:campaign|plan|strategy|conversion|conversions|leads?)\b/.test(m);
   const hasQualitySignal = /\b(?:quality|qualified|higher quality|better quality)\b/.test(m);
-  return hasBrand && hasCampaignSignal && hasQualitySignal;
+  return hasBrand && hasCampaignSignal && hasQualitySignal && !isWeeklyOptimizationReviewIntent(m);
 }
 
 function isWeeklyOptimizationReviewIntent(message: string): boolean {
