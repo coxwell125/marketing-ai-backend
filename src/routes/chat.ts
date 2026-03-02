@@ -847,10 +847,11 @@ function parseBudgetInr(message: string): number | null {
 
 function isQualifiedLeadCampaignIntent(message: string): boolean {
   const m = normalizeMessage(message);
-  const hasBrand = /\b(?:altis|coxwell)\b/.test(m);
   const hasCampaignSignal = /\b(?:campaign|plan|strategy|conversion|conversions|leads?)\b/.test(m);
   const hasQualitySignal = /\b(?:quality|qualified|higher quality|better quality)\b/.test(m);
-  return hasBrand && hasCampaignSignal && hasQualitySignal && !isWeeklyOptimizationReviewIntent(m);
+  const hasStructureSignal =
+    /\b(?:how many campaign|budget|allocated|allocation|persona|targeting|ad sets?|campaign structure)\b/.test(m);
+  return hasCampaignSignal && (hasQualitySignal || hasStructureSignal) && !isWeeklyOptimizationReviewIntent(m);
 }
 
 function isWeeklyOptimizationReviewIntent(message: string): boolean {
