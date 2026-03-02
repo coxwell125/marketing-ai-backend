@@ -739,6 +739,8 @@ export async function getGa4ReportSnapshot(
     metrics: [
       { name: "activeUsers" },
       { name: "newUsers" },
+      // GA UI snapshot is closer to engagement per active user than session duration.
+      { name: "userEngagementDuration" },
       { name: "averageSessionDuration" },
       { name: "eventCount" },
     ],
@@ -746,8 +748,13 @@ export async function getGa4ReportSnapshot(
   const row = Array.isArray(resp.rows) && resp.rows.length ? resp.rows[0] : null;
   const activeUsers = Number(row?.metricValues?.[0]?.value || 0) || 0;
   const newUsers = Number(row?.metricValues?.[1]?.value || 0) || 0;
-  const avgEngagement = Number(row?.metricValues?.[2]?.value || 0) || 0;
-  const eventCount = Number(row?.metricValues?.[3]?.value || 0) || 0;
+  const userEngagementDuration = Number(row?.metricValues?.[2]?.value || 0) || 0;
+  const averageSessionDuration = Number(row?.metricValues?.[3]?.value || 0) || 0;
+  const eventCount = Number(row?.metricValues?.[4]?.value || 0) || 0;
+  const avgEngagement =
+    activeUsers > 0
+      ? Number((userEngagementDuration / activeUsers).toFixed(2))
+      : averageSessionDuration;
   return {
     ok: true,
     tool: "get_ga4_report_snapshot",

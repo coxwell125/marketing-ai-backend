@@ -6,6 +6,7 @@ import { existsSync, readdirSync, readFileSync } from "fs";
 import path from "path";
 import { getOpenAITools, runToolByName } from "../services/toolIntegration";
 import { getAllowedMetaAccountIds } from "../services/metaTenant";
+import { getFollowerHistory } from "../services/followerHistory";
 
 const router = Router();
 
@@ -834,6 +835,32 @@ function parseRequestedHours(message: string): number | null {
   return hours;
 }
 
+function parseBudgetInr(message: string): number | null {
+  const m = normalizeMessage(message);
+  const budgetPattern = /(?:rs|inr|₹)?\s*([0-9][0-9,]{3,})\s*(?:per\s*month|monthly|month|\/month)?/i;
+  const match = m.match(budgetPattern);
+  if (!match) return null;
+  const value = Number(String(match[1] || "").replace(/,/g, ""));
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return value;
+}
+
+function isQualifiedLeadCampaignIntent(message: string): boolean {
+  const m = normalizeMessage(message);
+  const hasBrand = /\b(?:altis|coxwell)\b/.test(m);
+  const hasCampaignSignal = /\b(?:campaign|plan|strategy|conversion|conversions|leads?)\b/.test(m);
+  const hasQualitySignal = /\b(?:quality|qualified|higher quality|better quality)\b/.test(m);
+  return hasBrand && hasCampaignSignal && hasQualitySignal;
+}
+
+function isWeeklyOptimizationReviewIntent(message: string): boolean {
+  const m = normalizeMessage(message);
+  const hasBrand = /\b(?:altis|coxwell)\b/.test(m);
+  const hasTimeSignal = /\b(?:weekly|week|last 7 days|7 days)\b/.test(m);
+  const hasReviewSignal = /\b(?:review|audit|performance|optimi[sz]ation|optimize|actions?)\b/.test(m);
+  return hasBrand && hasTimeSignal && hasReviewSignal;
+}
+
 function hasSpendIntent(message: string): boolean {
   const m = message.toLowerCase();
   return /\b(spend|spen|spent)\b/.test(m);
@@ -926,9 +953,21 @@ function isInstagramAuditListIntent(message: string): boolean {
 function isInstagramDrilldownIntent(message: string): boolean {
   const m = normalizeMessage(message);
   const hasReelSignal = /\b(?:instagram|insta|reels?)\b/.test(m);
-  const hasDrillSignal =
-    /\b(?:after|other|perform|performance|followers?|gain|drop|lost|loss|growth|awning)\b/.test(m);
-  return hasReelSignal && hasDrillSignal;
+  const hasBothBrands = /\baltis\b/.test(m) && /\bcoxwell\b/.test(m);
+  if (hasBothBrands) return false;
+  if (isComparisonIntent(m)) return false;
+  const hasExplicitDrillSignal =
+    /\b(?:after|followers?|gain|drop|lost|loss|growth|awning)\b/.test(m) ||
+    /\bother\s+reels?\b/.test(m);
+  return hasReelSignal && hasExplicitDrillSignal;
+}
+
+function isInstagramAwningComparisonIntent(message: string): boolean {
+  const m = normalizeMessage(message);
+  const hasInstagramSignal = /\b(?:instagram|insta|reels?)\b/.test(m);
+  const hasAwningSignal = /\b(?:awning|non awning|non-awning)\b/.test(m);
+  const hasCompareSignal = /\b(?:compare|comparison|vs|versus|whether|drives?)\b/.test(m);
+  return hasInstagramSignal && hasAwningSignal && hasCompareSignal;
 }
 
 function resolveBrandAwareAccountId(message: string, requestedAccountId?: string): string | undefined {
@@ -1525,6 +1564,101 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
       return res.json(payload);
     }
 
+    // Instagram topic comparison intent: "awning vs non-awning", "whether awning drives performance".
+    if (isInstagramAwningComparisonIntent(normalizedMessage)) {
+      const requestedBrand = detectBrandFromMessage(normalizedMessage);
+      const accountId =
+        requestedBrand === "altis"
+          ? getAllowedMetaAccountIds()[1] || getAllowedMetaAccountIds()[0] || effectiveMetaAccountId
+          : requestedBrand === "coxwell"
+            ? getAllowedMetaAccountIds()[0] || effectiveMetaAccountId
+            : effectiveMetaAccountId;
+
+      const [overview, reels30] = await Promise.all([
+        runTool("get_instagram_account_overview", { account_id: accountId }),
+        runTool("get_instagram_reels_last_30_days", { account_id: accountId }),
+      ]);
+
+      const rows = Array.isArray(reels30?.top) ? [...reels30.top] : [];
+      const awningRows = rows.filter((r: any) => /awning/i.test(String(r?.caption || "")));
+      const nonAwningRows = rows.filter((r: any) => !/awning/i.test(String(r?.caption || "")));
+
+      const avg = (arr: any[], k: string) =>
+        arr.length ? arr.reduce((s, r) => s + Number(r?.[k] ?? 0), 0) / arr.length : 0;
+      const median = (arr: any[], k: string) => {
+        if (!arr.length) return 0;
+        const values = arr.map((r: any) => Number(r?.[k] ?? 0)).filter((v) => Number.isFinite(v)).sort((a, b) => a - b);
+        if (!values.length) return 0;
+        const mid = Math.floor(values.length / 2);
+        return values.length % 2 ? values[mid] : (values[mid - 1] + values[mid]) / 2;
+      };
+      const sum = (arr: any[], k: string) => arr.reduce((s, r) => s + Number(r?.[k] ?? 0), 0);
+
+      const awningPlaysMed = median(awningRows, "plays");
+      const nonAwningPlaysMed = median(nonAwningRows, "plays");
+      const awningReachMed = median(awningRows, "reach");
+      const nonAwningReachMed = median(nonAwningRows, "reach");
+      const awningSavesMed = median(awningRows, "saved");
+      const nonAwningSavesMed = median(nonAwningRows, "saved");
+      const awningSharesMed = median(awningRows, "shares");
+      const nonAwningSharesMed = median(nonAwningRows, "shares");
+
+      const awningWinSignals = [
+        awningPlaysMed > nonAwningPlaysMed,
+        awningReachMed > nonAwningReachMed,
+        awningSavesMed > nonAwningSavesMed,
+        awningSharesMed > nonAwningSharesMed,
+      ].filter(Boolean).length;
+      const verdict =
+        awningWinSignals >= 3
+          ? "Awning content appears stronger in this 30-day sample."
+          : awningWinSignals === 2
+            ? "Awning vs non-awning is mixed in this 30-day sample."
+            : "Awning content does not appear stronger in this 30-day sample.";
+
+      const confidence =
+        awningRows.length >= 3 && nonAwningRows.length >= 3
+          ? "Medium confidence (both groups have at least 3 reels)."
+          : "Low confidence (small sample size in one or both groups).";
+
+      const answer = [
+        `Instagram awning vs non-awning analysis for ${String(overview?.account?.username || "account")} (last 30 days)`,
+        `Current followers: ${formatNumber(Number(overview?.account?.followers_count ?? 0))}`,
+        "",
+        "| Segment | Reels | Median Plays | Median Reach | Median Saves | Median Shares | Avg Plays | Avg Reach | Total Saves | Total Shares |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        `| Awning | ${formatNumber(awningRows.length)} | ${formatNumber(awningPlaysMed)} | ${formatNumber(
+          awningReachMed
+        )} | ${formatNumber(awningSavesMed)} | ${formatNumber(awningSharesMed)} | ${formatNumber(
+          avg(awningRows, "plays")
+        )} | ${formatNumber(avg(awningRows, "reach"))} | ${formatNumber(sum(awningRows, "saved"))} | ${formatNumber(
+          sum(awningRows, "shares")
+        )} |`,
+        `| Non-awning | ${formatNumber(nonAwningRows.length)} | ${formatNumber(nonAwningPlaysMed)} | ${formatNumber(
+          nonAwningReachMed
+        )} | ${formatNumber(nonAwningSavesMed)} | ${formatNumber(nonAwningSharesMed)} | ${formatNumber(
+          avg(nonAwningRows, "plays")
+        )} | ${formatNumber(avg(nonAwningRows, "reach"))} | ${formatNumber(sum(nonAwningRows, "saved"))} | ${formatNumber(
+          sum(nonAwningRows, "shares")
+        )} |`,
+        "",
+        `Verdict: ${verdict}`,
+        `Confidence: ${confidence}`,
+      ].join("\n");
+
+      const payload: ResponsePayload = {
+        ok: true,
+        answer,
+        tools: [
+          { name: "get_instagram_account_overview", result: overview },
+          { name: "get_instagram_reels_last_30_days", result: reels30 },
+        ],
+        meta: { rid, mode: "instagram-awning-vs-nonawning-30d" },
+      };
+      setCachedResponse(responseCacheKey, payload);
+      return res.json(payload);
+    }
+
     // Instagram drill-down intent: "after awning", "other reels performing", "followers gain/drop"
     // Deterministic analysis path to avoid shallow OpenAI summaries.
     if (isInstagramDrilldownIntent(normalizedMessage)) {
@@ -1540,6 +1674,7 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
         runTool("get_instagram_account_overview", { account_id: accountId }),
         runTool("get_instagram_reels_last_30_days", { account_id: accountId }),
       ]);
+      const history = await getFollowerHistory(String(accountId || ""), 60);
 
       const rows = Array.isArray(reels30?.top) ? [...reels30.top] : [];
       rows.sort((a: any, b: any) => {
@@ -1596,8 +1731,37 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
         "Reels performance set:",
         table,
         "",
-        "Followers gain/drop note:",
-        "Instagram account endpoint provides current followers_count only. Exact gain/loss over time needs a stored daily history dataset.",
+        "Followers gain/drop analysis:",
+        ...(() => {
+          if (!history.length) {
+            return [
+              "No stored follower history yet. Tracking has now started; gain/loss will appear after daily snapshots accumulate.",
+            ];
+          }
+          const first = history[0];
+          const last = history[history.length - 1];
+          const delta = Number(last?.followers_count ?? 0) - Number(first?.followers_count ?? 0);
+          const lines = [
+            `Stored history window: ${first?.day_ist || "-"} to ${last?.day_ist || "-"} (${history.length} day snapshot(s)).`,
+            `Net follower change in stored window: ${delta >= 0 ? "+" : ""}${formatNumber(delta)}.`,
+          ];
+
+          if (awning && Number.isFinite(awningTs)) {
+            const awningDay = String(awning?.published_at || "").slice(0, 10);
+            const before = [...history].reverse().find((h: any) => String(h?.day_ist || "") <= awningDay) || null;
+            if (before) {
+              const sinceAwning = Number(last?.followers_count ?? 0) - Number(before?.followers_count ?? 0);
+              lines.push(
+                `Follower change since awning reel date (${awningDay}): ${sinceAwning >= 0 ? "+" : ""}${formatNumber(
+                  sinceAwning
+                )}.`
+              );
+            } else {
+              lines.push("Awning-date follower baseline not yet available in stored history.");
+            }
+          }
+          return lines;
+        })(),
       ].join("\n");
 
       const payload: ResponsePayload = {
@@ -1608,6 +1772,225 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
           { name: "get_instagram_reels_last_30_days", result: reels30 },
         ],
         meta: { rid, mode: "instagram-drilldown-30d" },
+      };
+      setCachedResponse(responseCacheKey, payload);
+      return res.json(payload);
+    }
+
+    // Qualified lead campaign strategy intent (brand-specific, data-backed, structured output).
+    if (isQualifiedLeadCampaignIntent(normalizedMessage)) {
+      const requestedBrand = detectBrandFromMessage(normalizedMessage);
+      const allowed = getAllowedMetaAccountIds();
+      const accountId =
+        requestedBrand === "altis"
+          ? allowed[1] || allowed[0] || effectiveMetaAccountId
+          : requestedBrand === "coxwell"
+            ? allowed[0] || effectiveMetaAccountId
+            : effectiveMetaAccountId || allowed[0];
+      const brandLabel = requestedBrand === "altis" ? "Altis" : requestedBrand === "coxwell" ? "Coxwell" : "Brand";
+      const monthlyBudget = parseBudgetInr(normalizedMessage) || 20000;
+      const weeklyBudget = monthlyBudget / 4;
+      const topBudget = Number((monthlyBudget * 0.65).toFixed(0));
+      const testBudget = Number((monthlyBudget * 0.25).toFixed(0));
+      const retargetBudget = Number((monthlyBudget * 0.1).toFixed(0));
+
+      const [bestCampaign, leads7, spend7, reels30] = await Promise.all([
+        runTool("get_meta_best_campaign", { account_id: accountId, period: "this_month" }),
+        runTool("get_meta_leads_last_7d", { account_id: accountId }),
+        runTool("get_meta_spend_last_7d", { account_id: accountId }),
+        runTool("get_instagram_reels_last_30_days", { account_id: accountId }),
+      ]);
+
+      const best = bestCampaign?.best || {};
+      const leadsLast7 = Number(leads7?.leads ?? NaN);
+      const spendLast7 = Number(spend7?.spend ?? NaN);
+      const currentCpl7 =
+        Number.isFinite(spendLast7) && Number.isFinite(leadsLast7) && leadsLast7 > 0
+          ? Number((spendLast7 / leadsLast7).toFixed(2))
+          : NaN;
+      const targetCpl = Number.isFinite(currentCpl7)
+        ? Number((currentCpl7 * 0.9).toFixed(2))
+        : Number((monthlyBudget / 80).toFixed(2));
+      const targetQualifiedLeads = targetCpl > 0 ? Math.max(1, Math.floor(monthlyBudget / targetCpl)) : 0;
+
+      const rows = Array.isArray(reels30?.top) ? reels30.top : [];
+      const topReel = rows.length
+        ? [...rows].sort((a: any, b: any) => Number(b?.shares ?? 0) - Number(a?.shares ?? 0))[0]
+        : null;
+      const topReelCaption = String(topReel?.caption || best?.campaign_name || "Top-performing proof-led creative");
+
+      const geoHint = /delhi\s*ncr/.test(normalizedMessage) ? "Delhi NCR" : "Target geography from prompt";
+      const audienceHint = /architect|interior|designer|builder|resort|homeowner|pergola|outdoor furniture/.test(
+        normalizedMessage
+      )
+        ? "Architects, interior designers, builders, resort owners/managers, homeowners (interest: pergolas/outdoor furniture)"
+        : "Qualified in-market audience clusters from your CRM + website signals";
+
+      const answer = [
+        `${brandLabel} 30-day campaign plan for higher-quality leads`,
+        "",
+        "Input lock:",
+        `- Budget: ${formatCurrency(monthlyBudget, "INR")} (monthly)`,
+        `- Geography: ${geoHint}`,
+        `- Audience: ${audienceHint}`,
+        `- Pricing: Keep website price unchanged`,
+        "",
+        "Current baseline from live data:",
+        `- Last 7 days spend: ${Number.isFinite(spendLast7) ? formatCurrency(spendLast7, "INR") : "-"}`,
+        `- Last 7 days leads: ${Number.isFinite(leadsLast7) ? formatNumber(leadsLast7) : "-"}`,
+        `- Last 7 days CPL: ${Number.isFinite(currentCpl7) ? formatCurrency(currentCpl7, "INR") : "-"}`,
+        `- Best campaign this month: ${String(best?.campaign_name || "N/A")} | Leads: ${formatNumber(
+          Number(best?.leads ?? NaN)
+        )} | CPC: ${Number.isFinite(Number(best?.cpc)) ? formatCurrency(Number(best?.cpc), "INR") : "-"}`,
+        "",
+        "Budget split (quality-first):",
+        "| Bucket | % | Budget | Objective |",
+        "|---|---:|---:|---|",
+        `| Proven lead set | 65% | ${formatCurrency(topBudget, "INR")} | Scale qualified form fills with strict filters |`,
+        `| Creative test set | 25% | ${formatCurrency(testBudget, "INR")} | Test 3 hooks + 2 offer angles for lead quality |`,
+        `| Retargeting | 10% | ${formatCurrency(retargetBudget, "INR")} | Re-engage high-intent visitors/video engagers |`,
+        "",
+        "Campaign structure:",
+        `1. Campaign A (Leads): 2 ad sets -> (a) Professionals: architects/interior/designers/builders, (b) Owners: resort/homeowners.`,
+        "2. Campaign B (Retargeting): 30-day website visitors, IG engagers, lead-form opens-not-submitted.",
+        `3. Creatives: Use proof-style messaging from top reel theme: "${topReelCaption.slice(0, 110)}".`,
+        "",
+        "Lead quality gate (form questions):",
+        "1. Project location (Delhi NCR micro-location).",
+        "2. Project type (residential/commercial/resort).",
+        "3. Installation timeline (0-1 month / 1-3 months / later).",
+        "4. Approx budget range (aligned to website pricing bands).",
+        "",
+        "KPI targets (30 days):",
+        `- Target qualified leads: ${formatNumber(targetQualifiedLeads)}`,
+        `- Target CPL (qualified): <= ${formatCurrency(targetCpl, "INR")}`,
+        "- CTR target: >= 1.5%",
+        "- Landing page conversion target: >= 8%",
+        "",
+        "Scale/Pause rules (daily):",
+        `1. Scale +20% budget if ad set CPL is below ${formatCurrency(targetCpl * 0.9, "INR")} for 2 consecutive days.`,
+        `2. Pause creative if CPL is above ${formatCurrency(targetCpl * 1.25, "INR")} after 1,500 impressions.`,
+        "3. Move budget from low-quality leads (missing budget/timeline answers) to high-intent ad set each evening.",
+      ].join("\n");
+
+      const payload: ResponsePayload = {
+        ok: true,
+        answer,
+        tools: [
+          { name: "get_meta_best_campaign", result: bestCampaign },
+          { name: "get_meta_leads_last_7d", result: leads7 },
+          { name: "get_meta_spend_last_7d", result: spend7 },
+          { name: "get_instagram_reels_last_30_days", result: reels30 },
+        ],
+        meta: { rid, mode: "qualified-lead-campaign-plan-v1" },
+      };
+      setCachedResponse(responseCacheKey, payload);
+      return res.json(payload);
+    }
+
+    // Weekly optimization review intent (brand-specific, exact actions).
+    if (isWeeklyOptimizationReviewIntent(normalizedMessage)) {
+      const requestedBrand = detectBrandFromMessage(normalizedMessage);
+      const allowed = getAllowedMetaAccountIds();
+      const accountId =
+        requestedBrand === "altis"
+          ? allowed[1] || allowed[0] || effectiveMetaAccountId
+          : requestedBrand === "coxwell"
+            ? allowed[0] || effectiveMetaAccountId
+            : effectiveMetaAccountId || allowed[0];
+      const brandLabel = requestedBrand === "altis" ? "Altis" : requestedBrand === "coxwell" ? "Coxwell" : "Brand";
+
+      const [spend7, leads7, bestCampaign, reels30, ga4Snapshot] = await Promise.all([
+        runTool("get_meta_spend_last_7d", { account_id: accountId }),
+        runTool("get_meta_leads_last_7d", { account_id: accountId }),
+        runTool("get_meta_best_campaign", { account_id: accountId, period: "this_month" }),
+        runTool("get_instagram_reels_last_30_days", { account_id: accountId }),
+        runTool("get_ga4_report_snapshot", { account_id: accountId, period: "last_7_days" }),
+      ]);
+
+      const spend = Number(spend7?.spend ?? NaN);
+      const leads = Number(leads7?.leads ?? NaN);
+      const cpl = Number.isFinite(spend) && Number.isFinite(leads) && leads > 0 ? Number((spend / leads).toFixed(2)) : NaN;
+      const best = bestCampaign?.best || {};
+      const bestCampaignCpl =
+        Number.isFinite(Number(best?.cpl)) ? Number(best?.cpl) : Number.NaN;
+
+      const rows = Array.isArray(reels30?.top) ? reels30.top : [];
+      const lowShareRows = [...rows]
+        .filter((r: any) => Number(r?.plays ?? 0) > 0)
+        .map((r: any) => ({
+          ...r,
+          shareRate: (Number(r?.shares ?? 0) / Math.max(1, Number(r?.plays ?? 0))) * 100,
+        }))
+        .sort((a: any, b: any) => a.shareRate - b.shareRate)
+        .slice(0, 3);
+
+      const weakCreativeTable = lowShareRows.length
+        ? [
+            "| # | Date | Plays | Shares | Share Rate | Caption |",
+            "|---:|---|---:|---:|---:|---|",
+            ...lowShareRows.map((r: any, i: number) => {
+              const date = String(r?.published_at || "").slice(0, 10) || "-";
+              const caption = String(r?.caption || "N/A").replace(/\s+/g, " ").trim().slice(0, 72);
+              return `| ${i + 1} | ${date} | ${formatNumber(Number(r?.plays ?? 0))} | ${formatNumber(
+                Number(r?.shares ?? 0)
+              )} | ${formatNumber(Number(r?.shareRate ?? 0))}% | ${caption} |`;
+            }),
+          ].join("\n")
+        : "No weak-creative rows available.";
+
+      const targetCpl = Number.isFinite(bestCampaignCpl)
+        ? Number((bestCampaignCpl * 1.05).toFixed(2))
+        : Number.isFinite(cpl)
+          ? Number((cpl * 0.95).toFixed(2))
+          : NaN;
+
+      const answer = [
+        `${brandLabel} weekly performance review (last 7 days)`,
+        "",
+        "KPI snapshot:",
+        "| KPI | Value |",
+        "|---|---:|",
+        `| Spend (7d) | ${Number.isFinite(spend) ? formatCurrency(spend, "INR") : "-"} |`,
+        `| Leads (7d) | ${Number.isFinite(leads) ? formatNumber(leads) : "-"} |`,
+        `| CPL (7d) | ${Number.isFinite(cpl) ? formatCurrency(cpl, "INR") : "-"} |`,
+        `| GA4 Active Users (7d) | ${formatNumber(Number(ga4Snapshot?.active_users ?? NaN))} |`,
+        `| GA4 New Users (7d) | ${formatNumber(Number(ga4Snapshot?.new_users ?? NaN))} |`,
+        `| GA4 Events (7d) | ${formatNumber(Number(ga4Snapshot?.event_count ?? NaN))} |`,
+        "",
+        "Risk flags:",
+        `1. Current CPL ${Number.isFinite(cpl) ? formatCurrency(cpl, "INR") : "-"} vs best-campaign CPL ${
+          Number.isFinite(bestCampaignCpl) ? formatCurrency(bestCampaignCpl, "INR") : "-"
+        }.`,
+        `2. Best campaign this month: ${String(best?.campaign_name || "N/A")} (leads ${formatNumber(
+          Number(best?.leads ?? NaN)
+        )}, CPC ${Number.isFinite(Number(best?.cpc)) ? formatCurrency(Number(best?.cpc), "INR") : "-"})`,
+        "3. Low-share creatives detected below.",
+        "",
+        "Weak creatives to optimize first:",
+        weakCreativeTable,
+        "",
+        "Exact optimization actions (next 7 days):",
+        `1. Budget move: shift 20% spend from ad sets with CPL > ${
+          Number.isFinite(targetCpl) ? formatCurrency(targetCpl * 1.2, "INR") : "target threshold"
+        } to the best-campaign audience cluster.`,
+        "2. Creative refresh: launch 2 new hooks for each weak reel theme; keep same offer, change first 2-sec problem statement.",
+        "3. Form quality filter: make budget range + project timeline mandatory; deprioritize leads without both fields.",
+        "4. Retargeting: create 7-day engaged-video audience and run proof/testimonial creative with explicit CTA.",
+        "5. Daily control rule: pause any ad after 1,500 impressions if CPL stays above threshold for 2 days.",
+      ].join("\n");
+
+      const payload: ResponsePayload = {
+        ok: true,
+        answer,
+        tools: [
+          { name: "get_meta_spend_last_7d", result: spend7 },
+          { name: "get_meta_leads_last_7d", result: leads7 },
+          { name: "get_meta_best_campaign", result: bestCampaign },
+          { name: "get_instagram_reels_last_30_days", result: reels30 },
+          { name: "get_ga4_report_snapshot", result: ga4Snapshot },
+        ],
+        meta: { rid, mode: "weekly-optimization-review-v1" },
       };
       setCachedResponse(responseCacheKey, payload);
       return res.json(payload);

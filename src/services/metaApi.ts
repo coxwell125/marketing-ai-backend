@@ -1,6 +1,7 @@
 // src/services/metaApi.ts
 import { z } from "zod";
 import { resolveMetaAccountId } from "./metaTenant";
+import { recordFollowerSnapshot } from "./followerHistory";
 
 const MetaEnvSchema = z.object({
   META_ACCESS_TOKEN: z.string().min(1),
@@ -851,6 +852,7 @@ export async function getInstagramReelsLast30Days(
 export async function getInstagramAccountOverview(accountId?: string): Promise<InstagramAccountOverviewResult> {
   const env = getInstagramEnv(accountId);
   const igId = getInstagramBusinessAccountId(accountId);
+  const resolvedAccountId = resolveMetaAccountId(accountId);
   const fields = ["id", "username", "name", "followers_count", "follows_count", "media_count"].join(",");
   const params = encodeParams({
     access_token: env.IG_ACCESS_TOKEN,
@@ -859,7 +861,7 @@ export async function getInstagramAccountOverview(accountId?: string): Promise<I
   const url = `https://graph.facebook.com/${env.META_API_VERSION}/${igId}?${params}`;
   const data = await metaFetchJson(url);
 
-  return {
+  const result: InstagramAccountOverviewResult = {
     ok: true,
     tool: "get_instagram_account_overview",
     timezone: "Asia/Kolkata",
@@ -873,6 +875,16 @@ export async function getInstagramAccountOverview(accountId?: string): Promise<I
       media_count: parseNumberLoose(data?.media_count),
     },
   };
+
+  await recordFollowerSnapshot({
+    account_id: resolvedAccountId,
+    ig_business_account_id: result.account.ig_business_account_id,
+    username: result.account.username,
+    followers_count: result.account.followers_count,
+    captured_at: result.as_of_ist,
+  }).catch(() => null);
+
+  return result;
 }
 
 export async function getInstagramBestReel(

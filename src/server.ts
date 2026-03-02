@@ -10,8 +10,9 @@ import toolsRouter from "./routes/tools";
 import { requireApiKey, requireRole } from "./services/auth";
 import { getMetricsSnapshot, recordRequestMetric, resetMetrics } from "./services/metrics";
 import { getAllowedMetaAccountIds } from "./services/metaTenant";
-import { verifyMetaToken } from "./services/metaApi";
+import { getInstagramAccountOverview, verifyMetaToken } from "./services/metaApi";
 import { debugGa4Tag, verifyGa4Setup } from "./services/ga4Api";
+import { getFollowerHistory } from "./services/followerHistory";
 
 const app = express();
 
@@ -181,6 +182,37 @@ app.get("/api/ga4/verify", async (_req, res) => {
 app.get("/api/ga4/debug-tag", async (_req, res) => {
   const result = await debugGa4Tag();
   return res.status(result.ok ? 200 : 400).json(result);
+});
+
+app.get("/api/instagram/followers/history", async (req, res) => {
+  const accountId = String(req.query.account_id || req.header("x-meta-account-id") || "").trim();
+  const daysRaw = Number(req.query.days || 30);
+  const days = Number.isFinite(daysRaw) ? Math.max(1, Math.min(365, Math.floor(daysRaw))) : 30;
+  if (!accountId) {
+    return res.status(400).json({ ok: false, error: "account_id is required" });
+  }
+  const rows = await getFollowerHistory(accountId, days);
+  return res.json({ ok: true, account_id: accountId, days, count: rows.length, rows });
+});
+
+app.post("/api/instagram/followers/snapshot", async (_req, res) => {
+  const accounts = getAllowedMetaAccountIds();
+  const out: any[] = [];
+  for (const accountId of accounts) {
+    try {
+      const snap = await getInstagramAccountOverview(accountId);
+      out.push({
+        ok: true,
+        account_id: accountId,
+        username: snap?.account?.username || "",
+        followers_count: snap?.account?.followers_count ?? null,
+        captured_at: snap?.as_of_ist || null,
+      });
+    } catch (err: any) {
+      out.push({ ok: false, account_id: accountId, error: String(err?.message || err) });
+    }
+  }
+  return res.json({ ok: true, snapshots: out });
 });
 
 // admin monitoring endpoints (RBAC protected)
