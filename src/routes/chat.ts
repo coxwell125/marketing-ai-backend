@@ -112,6 +112,11 @@ function isOpenAIFirstWithToolsEnabled(): boolean {
   return String(process.env.OPENAI_FIRST_WITH_TOOLS || "false").toLowerCase() === "true";
 }
 
+function isOpenAIDirectOnlyEnabled(): boolean {
+  if (!process.env.OPENAI_API_KEY) return false;
+  return String(process.env.OPENAI_DIRECT_ONLY || "false").toLowerCase() === "true";
+}
+
 function getGeminiModel(): string {
   const raw = process.env.GEMINI_MODEL || "gemini-2.0-flash";
   return raw.replace(/^models\//, "");
@@ -265,6 +270,36 @@ async function askOpenAIDirect(message: string): Promise<string> {
     ],
   });
   const text = resp.choices?.[0]?.message?.content?.trim() || "";
+  if (!text) throw new Error("OpenAI returned empty response");
+  return text;
+}
+
+async function askOpenAIDirectWithHistory(
+  message: string,
+  priorTurns: Array<{ role: "user" | "assistant"; text: string }> = []
+): Promise<string> {
+  if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY not set");
+  const history = priorTurns
+    .slice(-16)
+    .map((m) => ({
+      role: m.role,
+      content: String(m.text || "").slice(0, 2000),
+    }))
+    .filter((m) => m.content.trim().length > 0);
+  const resp = await openai.chat.completions.create({
+    model: getModel(),
+    temperature: getOpenAITemperature(),
+    max_tokens: 900,
+    messages: [
+      {
+        role: "system",
+        content: "You are ChatGPT. Give direct, helpful answers in natural language.",
+      },
+      ...history,
+      { role: "user", content: message },
+    ],
+  });
+  const text = String(resp.choices?.[0]?.message?.content || "").trim();
   if (!text) throw new Error("OpenAI returned empty response");
   return text;
 }
@@ -1501,6 +1536,21 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
     } as const;
     const runTool = (name: string, args: Record<string, any> = {}) =>
       runToolByName(name, args, toolContext);
+
+    // Pure ChatGPT mode: bypass all tool routing/templates and return direct OpenAI answer only.
+    if (isOpenAIDirectOnlyEnabled()) {
+      try {
+        const answer = await askOpenAIDirectWithHistory(userMessage, priorTurns);
+        const payload: ResponsePayload = {
+          ok: true,
+          answer,
+          meta: { rid, mode: "openai-direct-only", conversation_id: conversationId || undefined },
+        };
+        return res.json(payload);
+      } catch (err: any) {
+        console.error("OpenAI direct-only mode failed:", err?.message || err);
+      }
+    }
 
     if (!/^run\s+/i.test(userMessage) && !wantsComparison && !isOpenAIFirstWithToolsEnabled()) {
       const cachedPayload = getCachedResponse(responseCacheKey);
