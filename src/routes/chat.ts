@@ -923,6 +923,14 @@ function isInstagramAuditListIntent(message: string): boolean {
   return hasInstagramSignal && (hasListSignal || hasImproveSignal);
 }
 
+function isInstagramDrilldownIntent(message: string): boolean {
+  const m = normalizeMessage(message);
+  const hasReelSignal = /\b(?:instagram|insta|reels?)\b/.test(m);
+  const hasDrillSignal =
+    /\b(?:after|other|perform|performance|followers?|gain|drop|lost|loss|growth|awning)\b/.test(m);
+  return hasReelSignal && hasDrillSignal;
+}
+
 function resolveBrandAwareAccountId(message: string, requestedAccountId?: string): string | undefined {
   const requested = String(requestedAccountId || "").trim();
   const allowed = getAllowedMetaAccountIds();
@@ -1512,6 +1520,94 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
           { name: "get_instagram_reels_last_30_days", result: reelsLast30 },
         ],
         meta: { rid, mode: "instagram-audit-list-30d" },
+      };
+      setCachedResponse(responseCacheKey, payload);
+      return res.json(payload);
+    }
+
+    // Instagram drill-down intent: "after awning", "other reels performing", "followers gain/drop"
+    // Deterministic analysis path to avoid shallow OpenAI summaries.
+    if (isInstagramDrilldownIntent(normalizedMessage)) {
+      const requestedBrand = detectBrandFromMessage(normalizedMessage);
+      const accountId =
+        requestedBrand === "altis"
+          ? getAllowedMetaAccountIds()[1] || getAllowedMetaAccountIds()[0] || effectiveMetaAccountId
+          : requestedBrand === "coxwell"
+            ? getAllowedMetaAccountIds()[0] || effectiveMetaAccountId
+            : effectiveMetaAccountId;
+
+      const [overview, reels30] = await Promise.all([
+        runTool("get_instagram_account_overview", { account_id: accountId }),
+        runTool("get_instagram_reels_last_30_days", { account_id: accountId }),
+      ]);
+
+      const rows = Array.isArray(reels30?.top) ? [...reels30.top] : [];
+      rows.sort((a: any, b: any) => {
+        const ta = new Date(String(a?.published_at || "")).getTime() || 0;
+        const tb = new Date(String(b?.published_at || "")).getTime() || 0;
+        return tb - ta;
+      });
+
+      const awning = rows.find((r: any) => /awning/i.test(String(r?.caption || ""))) || null;
+      const awningTs = awning ? new Date(String(awning?.published_at || "")).getTime() : NaN;
+      const afterAwning = Number.isFinite(awningTs)
+        ? rows.filter((r: any) => {
+            const t = new Date(String(r?.published_at || "")).getTime();
+            return Number.isFinite(t) && t > awningTs;
+          })
+        : rows.slice(0, 10);
+
+      const tableRows = afterAwning.length ? afterAwning : rows;
+      const table = tableRows.length
+        ? [
+            "| # | Date | Plays | Reach | Saves | Likes | Comments | Shares | Caption |",
+            "|---:|---|---:|---:|---:|---:|---:|---:|---|",
+            ...tableRows.slice(0, 20).map((r: any, idx: number) => {
+              const date = String(r?.published_at || "").slice(0, 10) || "-";
+              const caption = String(r?.caption || "N/A").replace(/\s+/g, " ").trim().slice(0, 72);
+              return `| ${idx + 1} | ${date} | ${formatNumber(Number(r?.plays ?? 0))} | ${formatNumber(
+                Number(r?.reach ?? 0)
+              )} | ${formatNumber(Number(r?.saved ?? 0))} | ${formatNumber(Number(r?.likes ?? 0))} | ${formatNumber(
+                Number(r?.comments ?? 0)
+              )} | ${formatNumber(Number(r?.shares ?? 0))} | ${caption} |`;
+            }),
+          ].join("\n")
+        : "No reels found in the last 30 days.";
+
+      const avg = (arr: any[], k: string) =>
+        arr.length ? arr.reduce((s, r) => s + Number(r?.[k] ?? 0), 0) / arr.length : 0;
+      const avgPlays = avg(tableRows, "plays");
+      const avgReach = avg(tableRows, "reach");
+      const avgShares = avg(tableRows, "shares");
+
+      const answer = [
+        `Instagram deep analysis for ${String(overview?.account?.username || "account")} (last 30 days)`,
+        `Current followers: ${formatNumber(Number(overview?.account?.followers_count ?? 0))}`,
+        awning
+          ? `Reference reel ("awning") found on ${String(awning?.published_at || "").slice(0, 10)} with ${formatNumber(
+              Number(awning?.plays ?? 0)
+            )} plays and ${formatNumber(Number(awning?.reach ?? 0))} reach.`
+          : "No 'awning' caption match found; showing top recent reels from last 30 days.",
+        "",
+        `Set summary: average plays ${formatNumber(avgPlays)}, average reach ${formatNumber(
+          avgReach
+        )}, average shares ${formatNumber(avgShares)}.`,
+        "",
+        "Reels performance set:",
+        table,
+        "",
+        "Followers gain/drop note:",
+        "Instagram account endpoint provides current followers_count only. Exact gain/loss over time needs a stored daily history dataset.",
+      ].join("\n");
+
+      const payload: ResponsePayload = {
+        ok: true,
+        answer,
+        tools: [
+          { name: "get_instagram_account_overview", result: overview },
+          { name: "get_instagram_reels_last_30_days", result: reels30 },
+        ],
+        meta: { rid, mode: "instagram-drilldown-30d" },
       };
       setCachedResponse(responseCacheKey, payload);
       return res.json(payload);
