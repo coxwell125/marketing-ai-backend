@@ -660,6 +660,23 @@ function formatToolAnswer(tool: string, result: any): string {
     const count = Number(result?.count ?? rows.length);
     return `Meta ads list returned ${formatNumber(count)} row(s), sorted by spend:\n${top.join("\n")}`;
   }
+  if (tool === "get_meta_geo_breakdown") {
+    const rows = Array.isArray(result?.rows) ? result.rows : [];
+    if (!rows.length) return "No geo rows were returned for the selected range.";
+    const top = rows.slice(0, 10).map((r: any, i: number) => {
+      const geo = String(r?.geo || "-");
+      const clicks = formatNumber(Number(r?.clicks ?? 0));
+      const impressions = formatNumber(Number(r?.impressions ?? 0));
+      const spend = formatCurrency(Number(r?.spend ?? 0), String(result?.currency || "INR"));
+      const leads = formatNumber(Number(r?.leads ?? 0));
+      const ctr = Number.isFinite(Number(r?.ctr)) ? `${formatNumber(Number(r.ctr))}%` : "-";
+      return `${i + 1}. ${geo} | Clicks ${clicks} | Impr ${impressions} | CTR ${ctr} | Spend ${spend} | Leads ${leads}`;
+    });
+    const count = Number(result?.count ?? rows.length);
+    const breakdown = String(result?.requested?.breakdown || "country");
+    const note = result?.note ? `\nNote: ${String(result.note)}` : "";
+    return `Meta geo breakdown (${breakdown}) returned ${formatNumber(count)} row(s):\n${top.join("\n")}${note}`;
+  }
 
   if (tool === "get_meta_spend_today") {
     const spend = Number(result.spend ?? 0);
@@ -1018,6 +1035,10 @@ function normalizeMessage(message: string): string {
     .replace(/\bperfrom\b/g, "perform")
     .replace(/\bperfom\b/g, "perform")
     .replace(/\bperformnce\b/g, "performance")
+    .replace(/\bgeographly\b/g, "geography")
+    .replace(/\bgeographicaly\b/g, "geography")
+    .replace(/\bgeograpy\b/g, "geography")
+    .replace(/\bgeograhy\b/g, "geography")
     .replace(/\brell\b/g, "reel")
     .replace(/\btabular\b/g, "table")
     .replace(/\bmontly\b/g, "monthly")
@@ -1211,6 +1232,21 @@ function isAdsListIntent(message: string): boolean {
   );
 }
 
+function isMetaGeoIntent(message: string): boolean {
+  const m = normalizeMessage(message);
+  const hasMeta = /\b(?:meta|facebook|ad|ads|campaign)\b/.test(m);
+  const hasGeo = /\b(?:geo|geography|geographic|location|locations|country|countries|region|regions|city|cities)\b/.test(m);
+  const hasTrafficSignal = /\b(?:click|clicks|clicked|impression|impressions|leads|lead|spend)\b/.test(m);
+  return hasMeta && hasGeo && hasTrafficSignal;
+}
+
+function detectGeoBreakdownFromMessage(message: string): "country" | "region" | "city" {
+  const m = normalizeMessage(message);
+  if (/\b(city|cities)\b/.test(m)) return "city";
+  if (/\b(region|regions|state|states)\b/.test(m)) return "region";
+  return "country";
+}
+
 function parseAdsListTimeRange(message: string): { since?: string; until?: string } {
   const raw = String(message || "");
   const iso = raw.match(/\b\d{4}-\d{2}-\d{2}\b/g) || [];
@@ -1291,6 +1327,11 @@ function defaultToolBundleForMessage(message: string): string[] {
 
   if (isMetaDailyTableIntent(m)) {
     tools.add("get_meta_daily_breakdown_last_30d");
+    return Array.from(tools);
+  }
+
+  if (isMetaGeoIntent(m)) {
+    tools.add("get_meta_geo_breakdown");
     return Array.from(tools);
   }
 
@@ -1476,8 +1517,10 @@ function inferToolFromText(text: string): string | null {
   if (m.includes("best campaign") || (m.includes("campaign") && m.includes("best")))
     return "get_meta_best_campaign";
   if (isPoorPerformanceIntent(m)) return "get_meta_best_campaign";
+  if (isMetaGeoIntent(m)) return "get_meta_geo_breakdown";
 
   if (m.includes("meta") && m.includes("leads") && m.includes("today")) return "get_meta_leads_today";
+  if (isMetaGeoIntent(m)) return "get_meta_geo_breakdown";
   if (
     m.includes("meta") &&
     m.includes("leads") &&
@@ -1806,6 +1849,42 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
     // Enable via OPENAI_FIRST_WITH_TOOLS=true.
     if (isOpenAIFirstWithToolsEnabled()) {
       try {
+        if (isMetaGeoIntent(normalizedMessage)) {
+          const range = parseAdsListTimeRange(userMessage);
+          const breakdown = detectGeoBreakdownFromMessage(normalizedMessage);
+          const geoResult = await runTool("get_meta_geo_breakdown", { limit: 20, breakdown, ...range });
+          const rows = Array.isArray(geoResult?.rows) ? geoResult.rows : [];
+          if (rows.length > 0) {
+            const currency = String(geoResult?.currency || "INR");
+            const table = [
+              `Meta geo breakdown by ${String(geoResult?.requested?.breakdown || breakdown)} (top ${formatNumber(
+                rows.length
+              )} by clicks)`,
+              ...(geoResult?.note ? [String(geoResult.note), ""] : []),
+              "",
+              "| # | Geo | Clicks | Impressions | CTR | Spend | Leads | CPC | CPL |",
+              "|---:|---|---:|---:|---:|---:|---:|---:|---:|",
+              ...rows.map((r: any, idx: number) => {
+                const ctr = Number.isFinite(Number(r?.ctr)) ? `${formatNumber(Number(r.ctr))}%` : "-";
+                const cpc = Number.isFinite(Number(r?.cpc)) ? formatCurrency(Number(r.cpc), currency) : "-";
+                const cpl = Number.isFinite(Number(r?.cpl)) ? formatCurrency(Number(r.cpl), currency) : "-";
+                return `| ${idx + 1} | ${String(r?.geo || "-")} | ${formatNumber(Number(r?.clicks ?? 0))} | ${formatNumber(
+                  Number(r?.impressions ?? 0)
+                )} | ${ctr} | ${formatCurrency(Number(r?.spend ?? 0), currency)} | ${formatNumber(
+                  Number(r?.leads ?? 0)
+                )} | ${cpc} | ${cpl} |`;
+              }),
+            ].join("\n");
+            const payload: ResponsePayload = {
+              ok: true,
+              answer: table,
+              tools: [{ name: "get_meta_geo_breakdown", result: geoResult }],
+              meta: { rid, mode: "openai-first-meta-geo", conversation_id: conversationId || undefined },
+            };
+            return res.json(payload);
+          }
+        }
+
         if (isAdsListIntent(normalizedMessage)) {
           const range = parseAdsListTimeRange(userMessage);
           const adsListResult = await runTool("get_meta_ads_list", { limit: 30, ...range });

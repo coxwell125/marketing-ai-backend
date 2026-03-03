@@ -42,6 +42,25 @@ export const TOOL_DEFS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: "function",
     function: {
+      name: "meta_geo_breakdown",
+      description:
+        "Fetch Meta geo breakdown for clicks/spend/leads by country, region, or city for a given account and date range.",
+      parameters: {
+        type: "object",
+        properties: {
+          account_id: { type: "string", description: "Meta Ad Account ID" },
+          limit: { type: "number", description: "How many geo rows to return" },
+          since: { type: "string", description: "YYYY-MM-DD" },
+          until: { type: "string", description: "YYYY-MM-DD" },
+          breakdown: { type: "string", enum: ["country", "region", "city"] },
+        },
+        required: ["account_id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "meta_verify_token",
       description: "Verify Meta token for a given account_id (or default).",
       parameters: {
@@ -71,4 +90,3 @@ export const TOOL_DEFS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     },
   },
 ];
-

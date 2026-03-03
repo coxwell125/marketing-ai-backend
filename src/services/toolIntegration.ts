@@ -11,6 +11,7 @@ import {
   getMetaBestCampaign,
   getMetaDailyBreakdownLast30d,
   getMetaAdsList,
+  getMetaGeoBreakdown,
   getInstagramReelsToday,
   getInstagramReelsMonth,
   getInstagramReelsLast30Days,
@@ -253,6 +254,51 @@ function makeLocalMock(toolName: string, args: AnyJson = {}, reason = "Fallback 
         since: typeof args?.since === "string" ? args.since : null,
         until: typeof args?.until === "string" ? args.until : null,
         limit,
+      },
+      count: rows.length,
+      rows,
+      _mock: { used: true, reason },
+    };
+  }
+
+  if (toolName === "get_meta_geo_breakdown") {
+    const limit = Math.max(1, Math.min(Number(args?.limit) || 10, 100));
+    const breakdownRaw = String(args?.breakdown || "country");
+    const breakdown = breakdownRaw === "city" ? "city" : breakdownRaw === "region" ? "region" : "country";
+    const geoValues =
+      breakdown === "city"
+        ? ["Mumbai", "Delhi", "Bengaluru", "Pune", "Hyderabad", "Chennai", "Ahmedabad"]
+        : breakdown === "region"
+        ? ["Maharashtra", "Karnataka", "Delhi", "Tamil Nadu", "Telangana", "Gujarat"]
+        : ["India", "United States", "United Kingdom", "UAE", "Canada", "Australia"];
+    const rows = geoValues.slice(0, limit).map((geo, idx) => {
+      const spend = stableNumber(`${toolName}|spend|${today}|${geo}`, 200, 7000);
+      const clicks = stableNumber(`${toolName}|clicks|${today}|${geo}`, 20, 1400);
+      const impressions = stableNumber(`${toolName}|imp|${today}|${geo}`, 1000, 80000);
+      const leads = stableNumber(`${toolName}|leads|${today}|${geo}`, 0, 40);
+      return {
+        geo,
+        spend,
+        leads,
+        impressions,
+        clicks,
+        cpl: leads > 0 ? Number((spend / leads).toFixed(2)) : null,
+        cpc: clicks > 0 ? Number((spend / clicks).toFixed(2)) : null,
+        ctr: impressions > 0 ? Number(((clicks / impressions) * 100).toFixed(2)) : null,
+      };
+    });
+    rows.sort((a, b) => (b.clicks - a.clicks) || (b.spend - a.spend));
+    return {
+      ok: true,
+      tool: toolName,
+      timezone: "Asia/Kolkata",
+      as_of_ist: asOf,
+      currency: process.env.META_CURRENCY || "INR",
+      requested: {
+        since: typeof args?.since === "string" ? args.since : null,
+        until: typeof args?.until === "string" ? args.until : null,
+        limit,
+        breakdown,
       },
       count: rows.length,
       rows,
@@ -838,6 +884,31 @@ export const toolDefs: ToolDef[] = [
           limit: args?.limit,
           since: args?.since,
           until: args?.until,
+        })
+      ),
+  },
+  {
+    name: "get_meta_geo_breakdown",
+    description:
+      "Returns Meta geo breakdown (country/region/city) with clicks, impressions, spend, leads, CPC, CPL, and CTR.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        account_id: { type: "string" },
+        limit: { type: "number" },
+        since: { type: "string" },
+        until: { type: "string" },
+        breakdown: { type: "string", enum: ["country", "region", "city"] },
+      },
+      additionalProperties: false,
+    },
+    handler: async (args) =>
+      callToolWithFallback("get_meta_geo_breakdown", args || {}, () =>
+        getMetaGeoBreakdown(args?.account_id, {
+          limit: args?.limit,
+          since: args?.since,
+          until: args?.until,
+          breakdown: args?.breakdown,
         })
       ),
   },

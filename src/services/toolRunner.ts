@@ -1,4 +1,4 @@
-import { verifyMetaToken, getInstagramAccountOverview, getMetaAdsList } from "./metaApi";
+import { verifyMetaToken, getInstagramAccountOverview, getMetaAdsList, getMetaGeoBreakdown } from "./metaApi";
 import { verifyGa4Setup } from "./ga4Api";
 
 type ToolCall = {
@@ -55,6 +55,32 @@ export async function runTool(call: ToolCall, headers: Record<string, string>) {
       requested: { since, until, limit },
       count: rows.length,
       rows,
+    };
+  }
+
+  if (name === "meta_geo_breakdown") {
+    if (!accountId) return { ok: false, tool: name, error: "account_id is required" };
+    const since = isIsoDateOnly(args?.since) ? String(args.since) : null;
+    const until = isIsoDateOnly(args?.until) ? String(args.until) : null;
+    const limit = clampLimit(args?.limit, 20);
+    const breakdownRaw = String(args?.breakdown || "country");
+    const breakdown = breakdownRaw === "city" ? "city" : breakdownRaw === "region" ? "region" : "country";
+    const raw = await getMetaGeoBreakdown(accountId, {
+      since: since || undefined,
+      until: until || undefined,
+      limit,
+      breakdown,
+    });
+    return {
+      ok: true,
+      tool: name,
+      source_tool: "get_meta_geo_breakdown",
+      account_id: accountId,
+      timezone: raw.timezone,
+      currency: raw.currency,
+      requested: { since, until, limit, breakdown },
+      count: Number(raw?.count ?? (Array.isArray(raw?.rows) ? raw.rows.length : 0)),
+      rows: Array.isArray(raw?.rows) ? raw.rows : [],
     };
   }
 

@@ -478,6 +478,34 @@ export type MetaAdsListResult = {
   rows: MetaAdsListRow[];
 };
 
+export type MetaGeoBreakdownRow = {
+  geo: string;
+  spend: number;
+  leads: number;
+  impressions: number;
+  clicks: number;
+  cpl: number | null;
+  cpc: number | null;
+  ctr: number | null;
+};
+
+export type MetaGeoBreakdownResult = {
+  ok: true;
+  tool: "get_meta_geo_breakdown";
+  timezone: "Asia/Kolkata";
+  as_of_ist: string;
+  currency: string | null;
+  requested: {
+    since: string | null;
+    until: string | null;
+    limit: number;
+    breakdown: "country" | "region" | "city";
+  };
+  count: number;
+  rows: MetaGeoBreakdownRow[];
+  note?: string;
+};
+
 export async function getMetaSpendToday(accountId?: string): Promise<MetaSpendResult> {
   const env = getMetaEnv(accountId);
   const { since, until } = todayDatePresetForIST();
@@ -838,6 +866,100 @@ export async function getMetaAdsList(
     requested: { since, until, limit },
     count: rows.length,
     rows,
+  };
+}
+
+export async function getMetaGeoBreakdown(
+  accountId?: string,
+  opts?: { limit?: number; since?: string; until?: string; breakdown?: "country" | "region" | "city" }
+): Promise<MetaGeoBreakdownResult> {
+  const env = getMetaEnv(accountId);
+  const limitRaw = Number(opts?.limit ?? 30);
+  const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(200, Math.floor(limitRaw))) : 30;
+  const since = typeof opts?.since === "string" && /^\d{4}-\d{2}-\d{2}$/.test(opts.since) ? opts.since : null;
+  const until = typeof opts?.until === "string" && /^\d{4}-\d{2}-\d{2}$/.test(opts.until) ? opts.until : null;
+  const breakdown: "country" | "region" | "city" =
+    opts?.breakdown === "city" ? "city" : opts?.breakdown === "region" ? "region" : "country";
+
+  const fields = ["spend", "actions", "impressions", "clicks", "account_currency"].join(",");
+  const params = encodeParams({
+    access_token: env.META_ACCESS_TOKEN,
+    level: "ad",
+    fields,
+    breakdowns: breakdown,
+    ...(since && until ? { time_range: JSON.stringify({ since, until }) } : { date_preset: "last_30d" }),
+    limit: 5000,
+  });
+  const url = `https://graph.facebook.com/${env.META_API_VERSION}/${env.META_AD_ACCOUNT_ID}/insights?${params}`;
+  let data: any;
+  let effectiveBreakdown: "country" | "region" | "city" = breakdown;
+  let note: string | undefined;
+  try {
+    data = await metaFetchJson(url);
+  } catch (err: any) {
+    const msg = String(err?.message || "");
+    if (breakdown === "city") {
+      // Some accounts/objectives reject city breakdown; fallback to region.
+      const fallbackParams = encodeParams({
+        access_token: env.META_ACCESS_TOKEN,
+        level: "ad",
+        fields,
+        breakdowns: "region",
+        ...(since && until ? { time_range: JSON.stringify({ since, until }) } : { date_preset: "last_30d" }),
+        limit: 5000,
+      });
+      const fallbackUrl = `https://graph.facebook.com/${env.META_API_VERSION}/${env.META_AD_ACCOUNT_ID}/insights?${fallbackParams}`;
+      data = await metaFetchJson(fallbackUrl);
+      effectiveBreakdown = "region";
+      note = `City breakdown is unavailable for this account/time range. Showing region breakdown instead.`;
+    } else {
+      throw err;
+    }
+  }
+  const rawRows = Array.isArray(data?.data) ? data.data : [];
+
+  const agg = new Map<string, { spend: number; leads: number; impressions: number; clicks: number }>();
+  for (const r of rawRows) {
+    const geo = String(r?.[effectiveBreakdown] || "Unknown").trim() || "Unknown";
+    const spend = parseNumberLoose(r?.spend);
+    const leads = extractLeadsFromActions(r?.actions);
+    const impressions = parseNumberLoose(r?.impressions);
+    const clicks = parseNumberLoose(r?.clicks);
+    const prev = agg.get(geo) || { spend: 0, leads: 0, impressions: 0, clicks: 0 };
+    prev.spend += spend;
+    prev.leads += leads;
+    prev.impressions += impressions;
+    prev.clicks += clicks;
+    agg.set(geo, prev);
+  }
+
+  const rows: MetaGeoBreakdownRow[] = Array.from(agg.entries())
+    .map(([geo, v]) => ({
+      geo,
+      spend: Number(v.spend.toFixed(2)),
+      leads: v.leads,
+      impressions: v.impressions,
+      clicks: v.clicks,
+      cpl: v.leads > 0 ? Number((v.spend / v.leads).toFixed(2)) : null,
+      cpc: v.clicks > 0 ? Number((v.spend / v.clicks).toFixed(2)) : null,
+      ctr: v.impressions > 0 ? Number(((v.clicks / v.impressions) * 100).toFixed(2)) : null,
+    }))
+    .sort((a, b) => (b.clicks - a.clicks) || (b.spend - a.spend))
+    .slice(0, limit);
+
+  const currency =
+    typeof rawRows?.[0]?.account_currency === "string" ? String(rawRows[0].account_currency) : null;
+
+  return {
+    ok: true,
+    tool: "get_meta_geo_breakdown",
+    timezone: "Asia/Kolkata",
+    as_of_ist: istNowIso(),
+    currency,
+    requested: { since, until, limit, breakdown: effectiveBreakdown },
+    count: rows.length,
+    rows,
+    ...(note ? { note } : {}),
   };
 }
 
