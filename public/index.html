@@ -1139,6 +1139,7 @@
             <div class="kpi meta-card"><div class="name" title="Meta leads generated over last 7 days">Leads (Last 7D)</div><div id="tabCwMetaLeads7d" class="value">-</div></div>
             <div class="kpi meta-card"><div class="name" title="Top campaign by leads">Best Campaign</div><div id="tabCwMetaBestCampaign" class="value">-</div></div>
             <div class="kpi meta-card"><div class="name" title="Cost per lead for best campaign">Best Campaign CPL</div><div id="tabCwMetaBestCpl" class="value">-</div></div>
+            <div class="kpi meta-card"><div class="name" title="Meta top regions by leads for last 30 days">Top Regions (30D)</div><div id="tabCwMetaTopRegions30d" class="value mini-list">-</div></div>
           </div>
 
           <div id="panelCoxwellIg" class="kpi-panel">
@@ -1167,6 +1168,7 @@
             <div class="kpi"><div class="name">Active users by City</div><div id="tabCwGa4CityTable" class="value mini-list">-</div></div>
             <div class="kpi"><div class="name">Sessions by Session source / medium</div><div id="tabCwGa4SourceTable" class="value mini-list">-</div></div>
             <div class="kpi"><div class="name">Top pages/screens</div><div id="tabCwGa4PagesTable" class="value mini-list">-</div></div>
+            <div class="kpi"><div class="name">Top Cities (30D)</div><div id="tabCwGa4TopCities30d" class="value mini-list">-</div></div>
           </div>
 
           <div id="panelAltisMeta" class="kpi-panel">
@@ -1176,6 +1178,7 @@
             <div class="kpi meta-card"><div class="name" title="Meta leads generated over last 7 days">Leads (Last 7D)</div><div id="tabAltisMetaLeads7d" class="value">-</div></div>
             <div class="kpi meta-card"><div class="name" title="Top campaign by leads">Best Campaign</div><div id="tabAltisMetaBestCampaign" class="value">-</div></div>
             <div class="kpi meta-card"><div class="name" title="Cost per lead for best campaign">Best Campaign CPL</div><div id="tabAltisMetaBestCpl" class="value">-</div></div>
+            <div class="kpi meta-card"><div class="name" title="Meta top regions by leads for last 30 days">Top Regions (30D)</div><div id="tabAltisMetaTopRegions30d" class="value mini-list">-</div></div>
           </div>
 
           <div id="panelAltisIg" class="kpi-panel">
@@ -1204,6 +1207,7 @@
             <div class="kpi"><div class="name">Active users by City</div><div id="tabAltisGa4CityTable" class="value mini-list">-</div></div>
             <div class="kpi"><div class="name">Sessions by Session source / medium</div><div id="tabAltisGa4SourceTable" class="value mini-list">-</div></div>
             <div class="kpi"><div class="name">Top pages/screens</div><div id="tabAltisGa4PagesTable" class="value mini-list">-</div></div>
+            <div class="kpi"><div class="name">Top Cities (30D)</div><div id="tabAltisGa4TopCities30d" class="value mini-list">-</div></div>
           </div>
           <div style="display:none">
             <span id="tabCwGa4ActiveToday"></span><span id="tabCwGa4ActiveYesterday"></span><span id="tabCwGa4Active7d"></span><span id="tabCwGa4Active15d"></span><span id="tabCwGa4Active30d"></span>
@@ -1335,6 +1339,7 @@
         tabCwMetaLeads7d: document.getElementById("tabCwMetaLeads7d"),
         tabCwMetaBestCampaign: document.getElementById("tabCwMetaBestCampaign"),
         tabCwMetaBestCpl: document.getElementById("tabCwMetaBestCpl"),
+        tabCwMetaTopRegions30d: document.getElementById("tabCwMetaTopRegions30d"),
         tabCwIgFollowers: document.getElementById("tabCwIgFollowers"),
         tabCwIgFollowing: document.getElementById("tabCwIgFollowing"),
         tabCwIgMediaCount: document.getElementById("tabCwIgMediaCount"),
@@ -1367,6 +1372,7 @@
         tabAltisMetaLeads7d: document.getElementById("tabAltisMetaLeads7d"),
         tabAltisMetaBestCampaign: document.getElementById("tabAltisMetaBestCampaign"),
         tabAltisMetaBestCpl: document.getElementById("tabAltisMetaBestCpl"),
+        tabAltisMetaTopRegions30d: document.getElementById("tabAltisMetaTopRegions30d"),
         tabAltisIgFollowers: document.getElementById("tabAltisIgFollowers"),
         tabAltisIgFollowing: document.getElementById("tabAltisIgFollowing"),
         tabAltisIgMediaCount: document.getElementById("tabAltisIgMediaCount"),
@@ -1400,6 +1406,7 @@
         tabCwGa4CityTable: document.getElementById("tabCwGa4CityTable"),
         tabCwGa4SourceTable: document.getElementById("tabCwGa4SourceTable"),
         tabCwGa4PagesTable: document.getElementById("tabCwGa4PagesTable"),
+        tabCwGa4TopCities30d: document.getElementById("tabCwGa4TopCities30d"),
         cwGa4PeriodSelect: document.getElementById("cwGa4PeriodSelect"),
         tabAltisGa4SnapActiveUsers: document.getElementById("tabAltisGa4SnapActiveUsers"),
         tabAltisGa4SnapNewUsers: document.getElementById("tabAltisGa4SnapNewUsers"),
@@ -1408,6 +1415,7 @@
         tabAltisGa4CityTable: document.getElementById("tabAltisGa4CityTable"),
         tabAltisGa4SourceTable: document.getElementById("tabAltisGa4SourceTable"),
         tabAltisGa4PagesTable: document.getElementById("tabAltisGa4PagesTable"),
+        tabAltisGa4TopCities30d: document.getElementById("tabAltisGa4TopCities30d"),
         altisGa4PeriodSelect: document.getElementById("altisGa4PeriodSelect"),
         statusDot: document.getElementById("statusDot"),
         statusText: document.getElementById("statusText"),
@@ -1679,6 +1687,12 @@
         return getMetaAccountId();
       }
 
+      function getEffectiveBrandForQuestion(question) {
+        const explicitBrand = detectBrandFromQuestion(question);
+        if (explicitBrand) return explicitBrand;
+        return getBrandFromActiveTab();
+      }
+
       function resolveUrl(path) {
         const base = getBackendBase();
         if (!base) return path;
@@ -1688,6 +1702,7 @@
       async function postJson(url, body, options = {}) {
         const key = getApiKey();
         const accountId = String(options?.metaAccountId || getMetaAccountId() || "").trim();
+        const brand = String(options?.brand || "").trim().toLowerCase();
         let res;
         try {
           res = await fetch(resolveUrl(url), {
@@ -1696,6 +1711,7 @@
               "Content-Type": "application/json",
               ...(key ? { "x-api-key": key } : {}),
               ...(accountId ? { "x-meta-account-id": accountId } : {}),
+              ...(brand ? { "x-brand": brand } : {}),
             },
             body: JSON.stringify(body),
           });
@@ -2233,6 +2249,7 @@
         el.tabCwMetaLeads7d.textContent = "...";
         el.tabCwMetaBestCampaign.textContent = "...";
         el.tabCwMetaBestCpl.textContent = "...";
+        el.tabCwMetaTopRegions30d.textContent = "...";
         el.tabCwIgFollowers.textContent = "...";
         el.tabCwIgFollowing.textContent = "...";
         el.tabCwIgMediaCount.textContent = "...";
@@ -2265,6 +2282,7 @@
         el.tabAltisMetaLeads7d.textContent = "...";
         el.tabAltisMetaBestCampaign.textContent = "...";
         el.tabAltisMetaBestCpl.textContent = "...";
+        el.tabAltisMetaTopRegions30d.textContent = "...";
         el.tabAltisIgFollowers.textContent = "...";
         el.tabAltisIgFollowing.textContent = "...";
         el.tabAltisIgMediaCount.textContent = "...";
@@ -2298,6 +2316,7 @@
         el.tabCwGa4CityTable.textContent = "...";
         el.tabCwGa4SourceTable.textContent = "...";
         el.tabCwGa4PagesTable.textContent = "...";
+        el.tabCwGa4TopCities30d.textContent = "...";
         el.tabAltisGa4SnapActiveUsers.textContent = "...";
         el.tabAltisGa4SnapNewUsers.textContent = "...";
         el.tabAltisGa4SnapAvgEngagement.textContent = "...";
@@ -2305,6 +2324,7 @@
         el.tabAltisGa4CityTable.textContent = "...";
         el.tabAltisGa4SourceTable.textContent = "...";
         el.tabAltisGa4PagesTable.textContent = "...";
+        el.tabAltisGa4TopCities30d.textContent = "...";
         setKpiCardSubvalue(el.tabAltisIgBestPlays, "");
         setKpiCardSubvalue(el.tabAltisIgBestReach, "");
         setKpiCardSubvalue(el.tabAltisIgBestSaves, "");
@@ -2481,10 +2501,14 @@
           coxwellGa4CityRows,
           coxwellGa4SourceRows,
           coxwellGa4PagesRows,
+          coxwellGa4TopCities30d,
+          coxwellMetaTopRegions30d,
           altisGa4Snapshot,
           altisGa4CityRows,
           altisGa4SourceRows,
           altisGa4PagesRows,
+          altisGa4TopCities30d,
+          altisMetaTopRegions30d,
           ga4Debug,
         ] = await Promise.all([
           postJson("/api/tools/run", { tool: "get_meta_leads_today", args: {} }),
@@ -2557,10 +2581,14 @@
           postJson("/api/tools/run", { tool: "get_ga4_active_users_by_city", args: { account_id: brandAccounts.coxwell, period: coxwellGa4Period, limit: 7 } }),
           postJson("/api/tools/run", { tool: "get_ga4_sessions_by_source_medium", args: { account_id: brandAccounts.coxwell, period: coxwellGa4Period, limit: 7 } }),
           postJson("/api/tools/run", { tool: "get_ga4_top_pages_screens", args: { account_id: brandAccounts.coxwell, period: coxwellGa4Period, limit: 7 } }),
+          postJson("/api/tools/run", { tool: "get_ga4_top_cities_last_30d", args: { account_id: brandAccounts.coxwell, brand: "coxwell" } }),
+          postJson("/api/tools/run", { tool: "get_meta_top_regions_leads_last_30d", args: { account_id: brandAccounts.coxwell, brand: "coxwell" } }),
           postJson("/api/tools/run", { tool: "get_ga4_report_snapshot", args: { account_id: brandAccounts.altis, period: altisGa4Period } }),
           postJson("/api/tools/run", { tool: "get_ga4_active_users_by_city", args: { account_id: brandAccounts.altis, period: altisGa4Period, limit: 7 } }),
           postJson("/api/tools/run", { tool: "get_ga4_sessions_by_source_medium", args: { account_id: brandAccounts.altis, period: altisGa4Period, limit: 7 } }),
           postJson("/api/tools/run", { tool: "get_ga4_top_pages_screens", args: { account_id: brandAccounts.altis, period: altisGa4Period, limit: 7 } }),
+          postJson("/api/tools/run", { tool: "get_ga4_top_cities_last_30d", args: { account_id: brandAccounts.altis, brand: "altis" } }),
+          postJson("/api/tools/run", { tool: "get_meta_top_regions_leads_last_30d", args: { account_id: brandAccounts.altis, brand: "altis" } }),
           getJson("/api/ga4/debug-tag"),
         ]);
 
@@ -2653,6 +2681,14 @@
           : "-";
         el.tabCwMetaBestCpl.textContent = coxwellMetaBestCampaign.ok
           ? formatCurrencyINR(coxwellMetaBestCampaign.json?.best?.cpl)
+          : "-";
+        el.tabCwMetaTopRegions30d.textContent = coxwellMetaTopRegions30d.ok
+          ? (Array.isArray(coxwellMetaTopRegions30d.json?.rows)
+              ? coxwellMetaTopRegions30d.json.rows
+                  .slice(0, 5)
+                  .map((r) => `${String(r.region || "-")}: ${Number(r.leads || 0)} | CPL ${formatCurrencyINR(r.cpl)}`)
+                  .join("\n")
+              : "No data returned for this date range")
           : "-";
         el.tabCwIgFollowers.textContent = coxwellIgOverview.ok
           ? String(coxwellIgOverview.json?.account?.followers_count ?? "-")
@@ -2750,6 +2786,14 @@
           : "-";
         el.tabAltisMetaBestCpl.textContent = altisMetaBestCampaign.ok
           ? formatCurrencyINR(altisMetaBestCampaign.json?.best?.cpl)
+          : "-";
+        el.tabAltisMetaTopRegions30d.textContent = altisMetaTopRegions30d.ok
+          ? (Array.isArray(altisMetaTopRegions30d.json?.rows)
+              ? altisMetaTopRegions30d.json.rows
+                  .slice(0, 5)
+                  .map((r) => `${String(r.region || "-")}: ${Number(r.leads || 0)} | CPL ${formatCurrencyINR(r.cpl)}`)
+                  .join("\n")
+              : "No data returned for this date range")
           : "-";
         el.tabAltisIgFollowers.textContent = altisIgOverview.ok
           ? String(altisIgOverview.json?.account?.followers_count ?? "-")
@@ -2878,6 +2922,14 @@
               : "-")
           : "-";
         setKpiCardSubvalue(el.tabCwGa4PagesTable, GA4_TOP_PAGES_LEGEND);
+        el.tabCwGa4TopCities30d.textContent = coxwellGa4TopCities30d.ok
+          ? (Array.isArray(coxwellGa4TopCities30d.json?.rows)
+              ? coxwellGa4TopCities30d.json.rows
+                  .slice(0, 5)
+                  .map((r) => `${String(r.city || "-")}: ${Number(r.leads || 0)} | CVR ${Number(r.cvr || 0).toFixed(2)}%`)
+                  .join("\n")
+              : "No data returned for this date range")
+          : "-";
         el.tabAltisGa4SnapActiveUsers.textContent = altisGa4Snapshot.ok
           ? String(altisGa4Snapshot.json?.active_users ?? "-")
           : "-";
@@ -2908,6 +2960,14 @@
               : "-")
           : "-";
         setKpiCardSubvalue(el.tabAltisGa4PagesTable, GA4_TOP_PAGES_LEGEND);
+        el.tabAltisGa4TopCities30d.textContent = altisGa4TopCities30d.ok
+          ? (Array.isArray(altisGa4TopCities30d.json?.rows)
+              ? altisGa4TopCities30d.json.rows
+                  .slice(0, 5)
+                  .map((r) => `${String(r.city || "-")}: ${Number(r.leads || 0)} | CVR ${Number(r.cvr || 0).toFixed(2)}%`)
+                  .join("\n")
+              : "No data returned for this date range")
+          : "-";
 
         const alertMessages = [];
         const coxwellIgDiag = buildInstagramDiagnostic(
@@ -3159,6 +3219,7 @@
         el.regen.disabled = true;
         const typing = addTyping();
         const accountIdForQuestion = getEffectiveAccountIdForQuestion(q);
+        const brandForQuestion = getEffectiveBrandForQuestion(q);
         const r = await postJson(
           "/api/chat",
           {
@@ -3166,7 +3227,7 @@
             conversation_id: c?.id || "",
             history: buildChatHistoryPayload(c),
           },
-          { metaAccountId: accountIdForQuestion }
+          { metaAccountId: accountIdForQuestion, brand: brandForQuestion }
         );
         typing.remove();
 

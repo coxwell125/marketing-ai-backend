@@ -1161,11 +1161,15 @@ function isInstagramAwningComparisonIntent(message: string): boolean {
   return hasInstagramSignal && hasAwningSignal && hasCompareSignal;
 }
 
-function resolveBrandAwareAccountId(message: string, requestedAccountId?: string): string | undefined {
+function resolveBrandAwareAccountId(
+  message: string,
+  requestedAccountId?: string,
+  preferredBrand?: "coxwell" | "altis" | null
+): string | undefined {
   const requested = String(requestedAccountId || "").trim();
   const allowed = getAllowedMetaAccountIds();
   const fallback = requested || allowed[0] || "";
-  const brand = detectBrandFromMessage(message);
+  const brand = detectBrandFromMessage(message) || preferredBrand || null;
 
   if (!brand) return fallback || undefined;
   if (brand === "coxwell") return allowed[0] || fallback || undefined;
@@ -1933,7 +1937,18 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
     }
 
     const requestedMetaAccountId = req.header("x-meta-account-id") || "";
-    const effectiveMetaAccountId = resolveBrandAwareAccountId(normalizedMessage, requestedMetaAccountId);
+    const headerBrandRaw = String(req.header("x-brand") || "")
+      .trim()
+      .toLowerCase();
+    const headerBrand =
+      headerBrandRaw === "altis" || headerBrandRaw === "coxwell"
+        ? (headerBrandRaw as "altis" | "coxwell")
+        : null;
+    const effectiveMetaAccountId = resolveBrandAwareAccountId(
+      normalizedMessage,
+      requestedMetaAccountId,
+      headerBrand
+    );
     const responseCacheKey = `${normalizedMessage}::${effectiveMetaAccountId || "-"}`;
     const wantsComparison = isComparisonIntent(normalizedMessage);
     const toolContext = {
@@ -1954,7 +1969,7 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
     ) {
       const rangeLabel = "Last 30 Days";
       const topN = Math.min(5, parseTopCount(userMessage, 5, 5));
-      const requestedBrand = detectBrandFromMessage(normalizedMessage);
+      const requestedBrand = detectBrandFromMessage(normalizedMessage) || headerBrand;
       const accountIdForGeo = resolveBrandAwareAccountId(normalizedMessage, requestedMetaAccountId);
       const brandForArgs = requestedBrand || undefined;
 
