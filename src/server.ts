@@ -4,10 +4,11 @@ dotenv.config({ override: true });
 
 import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
+import net from "net";
 
 import chatRouter from "./routes/chat";
 import toolsRouter from "./routes/tools";
-import { requireApiKey, requireRole } from "./services/auth";
+import { requireApiKey, requireRole, type UserRole } from "./services/auth";
 import { getMetricsSnapshot, recordRequestMetric, resetMetrics } from "./services/metrics";
 import { getAllowedMetaAccountIds } from "./services/metaTenant";
 import { getInstagramAccountOverview, verifyMetaToken } from "./services/metaApi";
@@ -27,22 +28,60 @@ function parseCsvEnv(value: string | undefined): string[] {
 function normalizeIp(ip: string): string {
   const v = String(ip || "").trim();
   if (!v) return "";
+  if (v === "::1") return "127.0.0.1";
   return v.replace(/^::ffff:/, "");
 }
 
-function isIpAllowed(ip: string, allowlist: string[]): boolean {
+function parseIpv4ToInt(ip: string): number | null {
+  const parts = ip.split(".").map((p) => Number(p));
+  if (parts.length !== 4 || parts.some((p) => !Number.isInteger(p) || p < 0 || p > 255)) return null;
+  return (((parts[0] << 24) >>> 0) + ((parts[1] << 16) >>> 0) + ((parts[2] << 8) >>> 0) + (parts[3] >>> 0)) >>> 0;
+}
+
+function isIpv4CidrMatch(candidateIp: string, cidr: string): boolean {
+  const [baseRaw, prefixRaw] = cidr.split("/");
+  const base = parseIpv4ToInt(baseRaw || "");
+  const candidate = parseIpv4ToInt(candidateIp);
+  const prefix = Number(prefixRaw);
+  if (base === null || candidate === null || !Number.isInteger(prefix) || prefix < 0 || prefix > 32) return false;
+  if (prefix === 0) return true;
+  const mask = prefix === 32 ? 0xffffffff : (0xffffffff << (32 - prefix)) >>> 0;
+  return (base & mask) === (candidate & mask);
+}
+
+function isIpAllowed(ip: string, allowlist: string[], xForwardedFor?: string): boolean {
   if (!allowlist.length) return true;
-  const candidate = normalizeIp(ip);
-  return allowlist.some((allowedRaw) => {
-    const allowed = normalizeIp(allowedRaw);
-    return !!allowed && allowed === candidate;
-  });
+  const primary = normalizeIp(ip);
+  const fromHeader = String(xForwardedFor || "")
+    .split(",")
+    .map((x) => normalizeIp(x))
+    .filter(Boolean);
+  const candidates = Array.from(new Set([primary, ...fromHeader].filter(Boolean)));
+
+  return candidates.some((candidate) =>
+    allowlist.some((allowedRaw) => {
+      const allowed = normalizeIp(allowedRaw);
+      if (!allowed) return false;
+      if (allowed.includes("/")) return isIpv4CidrMatch(candidate, allowed);
+      if (allowed === "localhost") return candidate === "127.0.0.1";
+      if (net.isIP(allowed) === 0) return false;
+      return allowed === candidate;
+    })
+  );
 }
 
 const corsOrigin = process.env.CORS_ORIGIN?.trim();
 const requireOriginMatch = String(process.env.REQUIRE_ORIGIN_MATCH || "false").toLowerCase() === "true";
 const allowedIps = parseCsvEnv(process.env.ALLOWED_IPS);
 const disablePublicUi = String(process.env.DISABLE_PUBLIC_UI || "false").toLowerCase() === "true";
+const protectUiWithAuth = String(process.env.PROTECT_UI_WITH_AUTH || "false").toLowerCase() === "true";
+
+function getUiMinRole(): UserRole {
+  const raw = String(process.env.UI_MIN_ROLE || "admin").trim().toLowerCase();
+  if (raw === "viewer" || raw === "analyst" || raw === "admin") return raw;
+  return "admin";
+}
+const uiMinRole = getUiMinRole();
 
 if (String(process.env.TRUST_PROXY || "true").toLowerCase() !== "false") {
   app.set("trust proxy", true);
@@ -50,17 +89,27 @@ if (String(process.env.TRUST_PROXY || "true").toLowerCase() !== "false") {
 
 app.use(cors(corsOrigin ? { origin: corsOrigin } : undefined));
 app.use(express.json({ limit: "1mb" }));
-if (!disablePublicUi) {
+if (!disablePublicUi && !protectUiWithAuth) {
   app.use(express.static("public"));
 }
 app.disable("x-powered-by");
 
 // basic security headers
-app.use((_req, res, next) => {
+app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("Referrer-Policy", "no-referrer");
   res.setHeader("Permissions-Policy", "geolocation=(), microphone=(), camera=()");
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+  res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
+  res.setHeader(
+    "Content-Security-Policy",
+    "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https:;"
+  );
+  const forwardedProto = String(req.header("x-forwarded-proto") || "").toLowerCase();
+  if (req.secure || forwardedProto === "https") {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
   next();
 });
 
@@ -68,14 +117,16 @@ app.use((_req, res, next) => {
 app.use((req: Request, res: Response, next: NextFunction) => {
   if (allowedIps.length) {
     const ip = req.ip || req.socket.remoteAddress || "";
-    if (!isIpAllowed(ip, allowedIps)) {
+    const xff = req.header("x-forwarded-for") || "";
+    if (!isIpAllowed(ip, allowedIps, xff)) {
       return res.status(403).json({ ok: false, error: "Forbidden" });
     }
   }
 
   if (requireOriginMatch && corsOrigin) {
     const origin = String(req.header("origin") || "").trim();
-    if (!origin || origin !== corsOrigin) {
+    // Enforce only for browser requests that send Origin.
+    if (origin && origin !== corsOrigin) {
       return res.status(403).json({ ok: false, error: "Origin not allowed" });
     }
   }
@@ -85,7 +136,9 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 
 // request id (useful for logs)
 app.use((req: Request, _res: Response, next: NextFunction) => {
-  (req as any).rid = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const rid = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  (req as any).rid = rid;
+  _res.setHeader("X-Request-Id", rid);
   next();
 });
 
@@ -97,11 +150,19 @@ const RATE_MAX_TOOLS = Number(process.env.RATE_LIMIT_MAX_TOOLS || 400);
 const rateState = new Map<string, { count: number; resetAt: number }>();
 
 function getRateBucket(req: Request): "chat" | "tools" | "other" {
-  const p = String(req.path || "");
+  const p = String(req.originalUrl || req.baseUrl || req.path || "");
   if (p.startsWith("/api/chat")) return "chat";
   if (p.startsWith("/api/tools")) return "tools";
   return "other";
 }
+
+const RATE_CLEANUP_MS = Math.max(15_000, Math.min(RATE_WINDOW_MS, 60_000));
+const rateCleanupTimer = setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of rateState.entries()) {
+    if (now >= v.resetAt) rateState.delete(k);
+  }
+}, RATE_CLEANUP_MS);
 
 app.use((req: Request, res: Response, next: NextFunction) => {
   const apiKey = req.header("x-api-key") || "";
@@ -151,10 +212,14 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "marketing-ai-backend" });
 });
 
-app.get("/ui", (_req, res) => {
-  if (disablePublicUi) return res.status(404).json({ ok: false, error: "Not Found" });
-  res.sendFile(require("path").join(process.cwd(), "public", "index.html"));
-});
+app.get(
+  "/ui",
+  ...(protectUiWithAuth ? [requireApiKey, requireRole(uiMinRole)] : []),
+  (_req, res) => {
+    if (disablePublicUi) return res.status(404).json({ ok: false, error: "Not Found" });
+    res.sendFile(require("path").join(process.cwd(), "public", "index.html"));
+  }
+);
 
 // protect everything below
 app.use(requireApiKey);
@@ -227,7 +292,8 @@ app.post("/api/admin/metrics/reset", requireRole("admin"), (_req, res) => {
 
 // basic error handler
 app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-  console.error("Unhandled error:", err?.message || err);
+  const rid = (_req as any)?.rid || "unknown";
+  console.error(`[${rid}] Unhandled error:`, err?.message || err);
   res.status(500).json({ ok: false, error: "Internal Server Error" });
 });
 
@@ -237,8 +303,8 @@ export function startServer() {
   return app.listen(port, () => {
     if (process.env.NODE_ENV === "production") {
       const k = String(process.env.INTERNAL_API_KEY || "");
-      if (k === "cw-ai-prod") {
-        console.warn("Security warning: INTERNAL_API_KEY uses a weak default-like value.");
+      if (k && k.length < 24) {
+        console.warn("Security warning: INTERNAL_API_KEY is too short; use a longer random secret.");
       }
       if (!process.env.CORS_ORIGIN) {
         console.warn("Security warning: CORS_ORIGIN is not set in production.");
@@ -253,7 +319,25 @@ export function startServer() {
 }
 
 if (require.main === module) {
-  startServer();
+  const server = startServer();
+  const shutdown = (signal: string) => {
+    console.log(`Received ${signal}, starting graceful shutdown...`);
+    clearInterval(rateCleanupTimer);
+    server.close((err?: Error) => {
+      if (err) {
+        console.error("Graceful shutdown failed:", err.message);
+        process.exit(1);
+      }
+      console.log("HTTP server closed.");
+      process.exit(0);
+    });
+    setTimeout(() => {
+      console.error("Forced shutdown timeout reached.");
+      process.exit(1);
+    }, 10_000).unref();
+  };
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
 }
 
 export default app;

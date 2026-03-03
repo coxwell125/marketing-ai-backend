@@ -9,6 +9,8 @@ import {
   getMetaSpendLast7d,
   getMetaSpendToday,
   getMetaBestCampaign,
+  getMetaDailyBreakdownLast30d,
+  getMetaAdsList,
   getInstagramReelsToday,
   getInstagramReelsMonth,
   getInstagramReelsLast30Days,
@@ -160,6 +162,53 @@ function makeLocalMock(toolName: string, args: AnyJson = {}, reason = "Fallback 
     };
   }
 
+  if (toolName === "get_meta_daily_breakdown_last_30d") {
+    const rows = Array.from({ length: 30 }).map((_, idx) => {
+      const d = new Date(now.getTime() - (29 - idx) * 24 * 60 * 60 * 1000);
+      const date = formatYmd(d);
+      const spend = stableNumber(`${toolName}|spend|${date}`, 400, 6000);
+      const leads = stableNumber(`${toolName}|leads|${date}`, 0, 30);
+      const impressions = stableNumber(`${toolName}|impressions|${date}`, 1000, 70000);
+      const clicks = stableNumber(`${toolName}|clicks|${date}`, 20, 1800);
+      return {
+        date,
+        spend,
+        leads,
+        impressions,
+        clicks,
+        cpl: leads > 0 ? Number((spend / leads).toFixed(2)) : null,
+        cpc: clicks > 0 ? Number((spend / clicks).toFixed(2)) : null,
+      };
+    });
+    const totals = rows.reduce(
+      (acc, r) => {
+        acc.spend += r.spend;
+        acc.leads += r.leads;
+        acc.impressions += r.impressions;
+        acc.clicks += r.clicks;
+        return acc;
+      },
+      { spend: 0, leads: 0, impressions: 0, clicks: 0 }
+    );
+    return {
+      ok: true,
+      tool: toolName,
+      timezone: "Asia/Kolkata",
+      as_of_ist: asOf,
+      currency: process.env.META_CURRENCY || "INR",
+      rows,
+      totals: {
+        spend: Number(totals.spend.toFixed(2)),
+        leads: totals.leads,
+        impressions: totals.impressions,
+        clicks: totals.clicks,
+        cpl: totals.leads > 0 ? Number((totals.spend / totals.leads).toFixed(2)) : null,
+        cpc: totals.clicks > 0 ? Number((totals.spend / totals.clicks).toFixed(2)) : null,
+      },
+      _mock: { used: true, reason },
+    };
+  }
+
   if (toolName === "get_meta_ads_running_today") {
     return {
       ok: true,
@@ -168,6 +217,45 @@ function makeLocalMock(toolName: string, args: AnyJson = {}, reason = "Fallback 
       as_of_ist: asOf,
       active_ads: stableNumber(`${toolName}|active|${today}`, 1, 8),
       ads_with_spend_today: stableNumber(`${toolName}|spend|${today}`, 1, 5),
+      _mock: { used: true, reason },
+    };
+  }
+
+  if (toolName === "get_meta_ads_list") {
+    const limit = Math.max(1, Math.min(Number(args?.limit) || 30, 100));
+    const rows = Array.from({ length: limit }).map((_, idx) => {
+      const spend = stableNumber(`${toolName}|spend|${today}|${idx + 1}`, 100, 4500);
+      const leads = stableNumber(`${toolName}|leads|${today}|${idx + 1}`, 0, 24);
+      const clicks = stableNumber(`${toolName}|clicks|${today}|${idx + 1}`, 10, 900);
+      return {
+        ad_id: `ad_${idx + 1}`,
+        ad_name: `Sample Ad ${idx + 1}`,
+        campaign_id: `cmp_${Math.floor(idx / 2) + 1}`,
+        campaign_name: `Campaign ${Math.floor(idx / 2) + 1}`,
+        adset_id: `adset_${Math.floor(idx / 3) + 1}`,
+        adset_name: `Adset ${Math.floor(idx / 3) + 1}`,
+        status: idx % 4 === 0 ? "PAUSED" : "ACTIVE",
+        spend,
+        leads,
+        impressions: stableNumber(`${toolName}|imp|${today}|${idx + 1}`, 800, 55000),
+        clicks,
+        cpl: leads > 0 ? Number((spend / leads).toFixed(2)) : null,
+        cpc: clicks > 0 ? Number((spend / clicks).toFixed(2)) : null,
+      };
+    });
+    return {
+      ok: true,
+      tool: toolName,
+      timezone: "Asia/Kolkata",
+      as_of_ist: asOf,
+      currency: process.env.META_CURRENCY || "INR",
+      requested: {
+        since: typeof args?.since === "string" ? args.since : null,
+        until: typeof args?.until === "string" ? args.until : null,
+        limit,
+      },
+      count: rows.length,
+      rows,
       _mock: { used: true, reason },
     };
   }
@@ -704,6 +792,20 @@ export const toolDefs: ToolDef[] = [
       callToolWithFallback("get_meta_leads_last_7d", args || {}, () => getMetaLeadsLast7d(args?.account_id)),
   },
   {
+    name: "get_meta_daily_breakdown_last_30d",
+    description:
+      "Returns day-wise Meta performance for the last 30 days with spend, leads, impressions, clicks, CPL, and CPC.",
+    inputSchema: {
+      type: "object",
+      properties: { account_id: { type: "string" } },
+      additionalProperties: false,
+    },
+    handler: async (args) =>
+      callToolWithFallback("get_meta_daily_breakdown_last_30d", args || {}, () =>
+        getMetaDailyBreakdownLast30d(args?.account_id)
+      ),
+  },
+  {
     name: "get_meta_ads_running_today",
     description: "Returns count of active ads and ads with spend today.",
     inputSchema: {
@@ -714,6 +816,29 @@ export const toolDefs: ToolDef[] = [
     handler: async (args) =>
       callToolWithFallback("get_meta_ads_running_today", args || {}, () =>
         getMetaAdsRunningToday(args?.account_id)
+      ),
+  },
+  {
+    name: "get_meta_ads_list",
+    description:
+      "Returns Meta ads list with ad_id, ad_name, status, spend, leads, impressions, clicks, CPL, and CPC for requested range.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        account_id: { type: "string" },
+        limit: { type: "number" },
+        since: { type: "string" },
+        until: { type: "string" },
+      },
+      additionalProperties: false,
+    },
+    handler: async (args) =>
+      callToolWithFallback("get_meta_ads_list", args || {}, () =>
+        getMetaAdsList(args?.account_id, {
+          limit: args?.limit,
+          since: args?.since,
+          until: args?.until,
+        })
       ),
   },
   {

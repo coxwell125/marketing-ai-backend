@@ -411,6 +411,33 @@ export type MetaLeadsResult = {
   leads: number;
 };
 
+export type MetaDailyBreakdownRow = {
+  date: string;
+  spend: number;
+  leads: number;
+  impressions: number;
+  clicks: number;
+  cpl: number | null;
+  cpc: number | null;
+};
+
+export type MetaDailyBreakdownLast30dResult = {
+  ok: true;
+  tool: "get_meta_daily_breakdown_last_30d";
+  timezone: "Asia/Kolkata";
+  as_of_ist: string;
+  currency: string | null;
+  rows: MetaDailyBreakdownRow[];
+  totals: {
+    spend: number;
+    leads: number;
+    impressions: number;
+    clicks: number;
+    cpl: number | null;
+    cpc: number | null;
+  };
+};
+
 export type MetaAdsRunningTodayResult = {
   ok: true;
   tool: "get_meta_ads_running_today";
@@ -418,6 +445,37 @@ export type MetaAdsRunningTodayResult = {
   as_of_ist: string;
   active_ads: number;
   ads_with_spend_today: number;
+};
+
+export type MetaAdsListRow = {
+  ad_id: string;
+  ad_name: string;
+  campaign_id: string | null;
+  campaign_name: string | null;
+  adset_id: string | null;
+  adset_name: string | null;
+  status: string | null;
+  spend: number;
+  leads: number;
+  impressions: number;
+  clicks: number;
+  cpl: number | null;
+  cpc: number | null;
+};
+
+export type MetaAdsListResult = {
+  ok: true;
+  tool: "get_meta_ads_list";
+  timezone: "Asia/Kolkata";
+  as_of_ist: string;
+  currency: string | null;
+  requested: {
+    since: string | null;
+    until: string | null;
+    limit: number;
+  };
+  count: number;
+  rows: MetaAdsListRow[];
 };
 
 export async function getMetaSpendToday(accountId?: string): Promise<MetaSpendResult> {
@@ -560,6 +618,74 @@ export async function getMetaLeadsLast30d(accountId?: string): Promise<MetaLeads
   };
 }
 
+export async function getMetaDailyBreakdownLast30d(
+  accountId?: string
+): Promise<MetaDailyBreakdownLast30dResult> {
+  const env = getMetaEnv(accountId);
+
+  const fields = ["date_start", "date_stop", "spend", "actions", "impressions", "clicks", "account_currency"].join(",");
+  const params = encodeParams({
+    access_token: env.META_ACCESS_TOKEN,
+    level: "account",
+    time_increment: 1,
+    fields,
+    date_preset: "last_30d",
+    limit: 100,
+  });
+
+  const url = `https://graph.facebook.com/${env.META_API_VERSION}/${env.META_AD_ACCOUNT_ID}/insights?${params}`;
+  const data = await metaFetchJson(url);
+  const rowsRaw = Array.isArray(data?.data) ? data.data : [];
+
+  const rows: MetaDailyBreakdownRow[] = rowsRaw
+    .map((r: any) => {
+      const spend = parseNumberLoose(r?.spend);
+      const leads = extractLeadsFromActions(r?.actions);
+      const impressions = parseNumberLoose(r?.impressions);
+      const clicks = parseNumberLoose(r?.clicks);
+      const cpl = leads > 0 ? Number((spend / leads).toFixed(2)) : null;
+      const cpc = clicks > 0 ? Number((spend / clicks).toFixed(2)) : null;
+      return {
+        date: String(r?.date_start || ""),
+        spend,
+        leads,
+        impressions,
+        clicks,
+        cpl,
+        cpc,
+      };
+    })
+    .filter((r: MetaDailyBreakdownRow) => !!r.date)
+    .sort((a: MetaDailyBreakdownRow, b: MetaDailyBreakdownRow) => a.date.localeCompare(b.date));
+
+  const totalSpend = rows.reduce((s, r) => s + r.spend, 0);
+  const totalLeads = rows.reduce((s, r) => s + r.leads, 0);
+  const totalImpressions = rows.reduce((s, r) => s + r.impressions, 0);
+  const totalClicks = rows.reduce((s, r) => s + r.clicks, 0);
+  const totalCpl = totalLeads > 0 ? Number((totalSpend / totalLeads).toFixed(2)) : null;
+  const totalCpc = totalClicks > 0 ? Number((totalSpend / totalClicks).toFixed(2)) : null;
+
+  const currency =
+    typeof rowsRaw?.[0]?.account_currency === "string" ? String(rowsRaw[0].account_currency) : null;
+
+  return {
+    ok: true,
+    tool: "get_meta_daily_breakdown_last_30d",
+    timezone: "Asia/Kolkata",
+    as_of_ist: istNowIso(),
+    currency,
+    rows,
+    totals: {
+      spend: Number(totalSpend.toFixed(2)),
+      leads: totalLeads,
+      impressions: totalImpressions,
+      clicks: totalClicks,
+      cpl: totalCpl,
+      cpc: totalCpc,
+    },
+  };
+}
+
 export async function getMetaLeadsLast7d(accountId?: string): Promise<MetaLeadsResult> {
   const env = getMetaEnv(accountId);
 
@@ -620,6 +746,98 @@ export async function getMetaAdsRunningToday(accountId?: string): Promise<MetaAd
     as_of_ist: istNowIso(),
     active_ads: activeAds,
     ads_with_spend_today: adsWithSpendToday,
+  };
+}
+
+export async function getMetaAdsList(
+  accountId?: string,
+  opts?: { limit?: number; since?: string; until?: string }
+): Promise<MetaAdsListResult> {
+  const env = getMetaEnv(accountId);
+  const limitRaw = Number(opts?.limit ?? 30);
+  const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(200, Math.floor(limitRaw))) : 30;
+  const since = typeof opts?.since === "string" && /^\d{4}-\d{2}-\d{2}$/.test(opts.since) ? opts.since : null;
+  const until = typeof opts?.until === "string" && /^\d{4}-\d{2}-\d{2}$/.test(opts.until) ? opts.until : null;
+
+  const fields = [
+    "ad_id",
+    "ad_name",
+    "campaign_id",
+    "campaign_name",
+    "adset_id",
+    "adset_name",
+    "spend",
+    "actions",
+    "impressions",
+    "clicks",
+    "account_currency",
+  ].join(",");
+  const insightsParams = encodeParams({
+    access_token: env.META_ACCESS_TOKEN,
+    level: "ad",
+    fields,
+    ...(since && until ? { time_range: JSON.stringify({ since, until }) } : { date_preset: "last_30d" }),
+    limit: Math.max(limit, 100),
+  });
+  const insightsUrl = `https://graph.facebook.com/${env.META_API_VERSION}/${env.META_AD_ACCOUNT_ID}/insights?${insightsParams}`;
+  const insightsData = await metaFetchJson(insightsUrl);
+  const insightRows = Array.isArray(insightsData?.data) ? insightsData.data : [];
+
+  const adsParams = encodeParams({
+    access_token: env.META_ACCESS_TOKEN,
+    fields: "id,effective_status,name",
+    limit: 1000,
+  });
+  const adsUrl = `https://graph.facebook.com/${env.META_API_VERSION}/${env.META_AD_ACCOUNT_ID}/ads?${adsParams}`;
+  const adsData = await metaFetchJson(adsUrl);
+  const adRows = Array.isArray(adsData?.data) ? adsData.data : [];
+  const statusByAdId = new Map<string, string>();
+  for (const r of adRows) {
+    const id = String(r?.id || "");
+    const status = String(r?.effective_status || "");
+    if (id) statusByAdId.set(id, status || "UNKNOWN");
+  }
+
+  const rows: MetaAdsListRow[] = insightRows
+    .map((r: any) => {
+      const ad_id = String(r?.ad_id || "").trim();
+      const ad_name = String(r?.ad_name || "").trim();
+      const spend = parseNumberLoose(r?.spend);
+      const leads = extractLeadsFromActions(r?.actions);
+      const impressions = parseNumberLoose(r?.impressions);
+      const clicks = parseNumberLoose(r?.clicks);
+      return {
+        ad_id,
+        ad_name: ad_name || `Ad ${ad_id || "Unknown"}`,
+        campaign_id: typeof r?.campaign_id === "string" ? r.campaign_id : null,
+        campaign_name: typeof r?.campaign_name === "string" ? r.campaign_name : null,
+        adset_id: typeof r?.adset_id === "string" ? r.adset_id : null,
+        adset_name: typeof r?.adset_name === "string" ? r.adset_name : null,
+        status: ad_id ? statusByAdId.get(ad_id) || null : null,
+        spend,
+        leads,
+        impressions,
+        clicks,
+        cpl: leads > 0 ? Number((spend / leads).toFixed(2)) : null,
+        cpc: clicks > 0 ? Number((spend / clicks).toFixed(2)) : null,
+      } satisfies MetaAdsListRow;
+    })
+    .filter((r: MetaAdsListRow) => !!r.ad_id)
+    .sort((a: MetaAdsListRow, b: MetaAdsListRow) => (b.spend - a.spend) || (b.leads - a.leads))
+    .slice(0, limit);
+
+  const currency =
+    typeof insightRows?.[0]?.account_currency === "string" ? String(insightRows[0].account_currency) : null;
+
+  return {
+    ok: true,
+    tool: "get_meta_ads_list",
+    timezone: "Asia/Kolkata",
+    as_of_ist: istNowIso(),
+    currency,
+    requested: { since, until, limit },
+    count: rows.length,
+    rows,
   };
 }
 

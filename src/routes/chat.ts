@@ -7,6 +7,8 @@ import path from "path";
 import { getOpenAITools, runToolByName } from "../services/toolIntegration";
 import { getAllowedMetaAccountIds } from "../services/metaTenant";
 import { getFollowerHistory } from "../services/followerHistory";
+import { DEFAULT_SYSTEM_PROMPT, TOOL_DEFS, type ChatMessage as LlmChatMessage } from "../services/llm";
+import { runTool as runLlmTool } from "../services/toolRunner";
 
 const router = Router();
 
@@ -78,9 +80,9 @@ function getModel(): string {
 }
 
 function getOpenAIMaxTokens(): number {
-  const raw = Number(process.env.OPENAI_MAX_TOKENS || 220);
-  if (!Number.isFinite(raw)) return 220;
-  return Math.max(80, Math.min(800, Math.floor(raw)));
+  const raw = Number(process.env.OPENAI_MAX_TOKENS || 700);
+  if (!Number.isFinite(raw)) return 700;
+  return Math.max(250, Math.min(1400, Math.floor(raw)));
 }
 
 function getOpenAITemperature(): number {
@@ -90,9 +92,9 @@ function getOpenAITemperature(): number {
 }
 
 function getOpenAIMinToolCalls(): number {
-  const raw = Number(process.env.OPENAI_MIN_TOOL_CALLS || 2);
-  if (!Number.isFinite(raw)) return 2;
-  return Math.max(1, Math.min(6, Math.floor(raw)));
+  const raw = Number(process.env.OPENAI_MIN_TOOL_CALLS || 1);
+  if (!Number.isFinite(raw)) return 1;
+  return Math.max(0, Math.min(6, Math.floor(raw)));
 }
 
 function isForceOpenAIForAll(): boolean {
@@ -115,6 +117,11 @@ function isOpenAIFirstWithToolsEnabled(): boolean {
 function isOpenAIDirectOnlyEnabled(): boolean {
   if (!process.env.OPENAI_API_KEY) return false;
   return String(process.env.OPENAI_DIRECT_ONLY || "false").toLowerCase() === "true";
+}
+
+function isChatGptStyleToolsModeEnabled(): boolean {
+  if (!process.env.OPENAI_API_KEY) return false;
+  return String(process.env.CHATGPT_STYLE_TOOLS_MODE || "false").toLowerCase() === "true";
 }
 
 function getGeminiModel(): string {
@@ -350,9 +357,11 @@ async function answerFromOpenAIWithTools(
 
   const systemParts = [
     "You are a marketing analytics assistant.",
-    "For marketing/Meta/GA4/Instagram questions, call relevant tools first, then answer using tool results only.",
+    "First call relevant tools for marketing/Meta/GA4/Instagram questions.",
+    "Then write a clear human answer with headings and bullets.",
+    "Never invent metrics or facts not present in tool outputs.",
+    "If requested info is not available from tools (for example a 30-ads name list), explicitly say what is missing and offer the closest available output.",
     "If user asks for both Altis and Coxwell, fetch both brands and present a clear table.",
-    "Keep response concise, numeric, and directly actionable.",
   ];
   if (brandAccounts?.coxwell || brandAccounts?.altis) {
     systemParts.push(
@@ -389,7 +398,8 @@ async function answerFromOpenAIWithTools(
       const answer = String(assistant.content || "").trim();
       if (!answer) return null;
       if (toolResults.length < minToolCalls) return null;
-      return { answer, tools: toolResults, mode: "openai-tool-calling" };
+      const rewritten = await rewriteDraftWithOpenAI(message, answer);
+      return { answer: rewritten || answer, tools: toolResults, mode: "openai-tool-calling" };
     }
 
     messages.push(assistant);
@@ -634,6 +644,22 @@ function formatToolAnswer(tool: string, result: any): string {
     const adsWithSpendToday = Number(result.ads_with_spend_today ?? 0);
     return `You have ${activeAds} active ads, and ${adsWithSpendToday} ads delivered spend today.`;
   }
+  if (tool === "get_meta_ads_list") {
+    const rows = Array.isArray(result?.rows) ? result.rows : [];
+    if (!rows.length) return "No ads were returned for the selected range.";
+    const top = rows.slice(0, 10).map((r: any, i: number) => {
+      const name = String(r?.ad_name || r?.ad_id || `Ad ${i + 1}`);
+      const id = String(r?.ad_id || "-");
+      const campaign = String(r?.campaign_name || r?.campaign_id || "-");
+      const adset = String(r?.adset_name || r?.adset_id || "-");
+      const status = String(r?.status || "UNKNOWN");
+      const spend = formatCurrency(Number(r?.spend ?? 0), String(result?.currency || "INR"));
+      const leads = formatNumber(Number(r?.leads ?? 0));
+      return `${i + 1}. ${name} (${id}) | ${campaign} | ${adset} | ${status} | Spend ${spend} | Leads ${leads}`;
+    });
+    const count = Number(result?.count ?? rows.length);
+    return `Meta ads list returned ${formatNumber(count)} row(s), sorted by spend:\n${top.join("\n")}`;
+  }
 
   if (tool === "get_meta_spend_today") {
     const spend = Number(result.spend ?? 0);
@@ -645,6 +671,28 @@ function formatToolAnswer(tool: string, result: any): string {
     const spend = Number(result.spend ?? 0);
     const currency = String(result.currency || "INR");
     return `Your Meta spend this month is ${formatCurrency(spend, currency)}.`;
+  }
+  if (tool === "get_meta_daily_breakdown_last_30d") {
+    const rows = Array.isArray(result.rows) ? result.rows : [];
+    if (!rows.length) return "No Meta day-wise rows were returned for the last 30 days.";
+    const currency = String(result?.currency || "INR");
+    const table = [
+      "| Date | Spend | Leads | Impressions | Clicks | CPL | CPC |",
+      "|---|---:|---:|---:|---:|---:|---:|",
+      ...rows.map((r: any) => {
+        const date = String(r?.date || "-");
+        const spend = formatCurrency(Number(r?.spend ?? 0), currency);
+        const leads = formatNumber(Number(r?.leads ?? 0));
+        const impressions = formatNumber(Number(r?.impressions ?? 0));
+        const clicks = formatNumber(Number(r?.clicks ?? 0));
+        const cplRaw = Number(r?.cpl);
+        const cpcRaw = Number(r?.cpc);
+        const cpl = Number.isFinite(cplRaw) ? formatCurrency(cplRaw, currency) : "-";
+        const cpc = Number.isFinite(cpcRaw) ? formatCurrency(cpcRaw, currency) : "-";
+        return `| ${date} | ${spend} | ${leads} | ${impressions} | ${clicks} | ${cpl} | ${cpc} |`;
+      }),
+    ].join("\n");
+    return table;
   }
 
   if (tool === "get_meta_best_campaign") {
@@ -1154,14 +1202,97 @@ function isMetaIntent(message: string): boolean {
   return /\b(?:meta|facebook|ads?|campaign|spend|leads?|cpl|cpc|cpa)\b/.test(m);
 }
 
+function isAdsListIntent(message: string): boolean {
+  const m = normalizeMessage(message);
+  return (
+    /\b(?:give|show|list|get|top)\b.*\b30\b.*\bads?\b/.test(m) ||
+    /\btop\s*30\s*ads?\b/.test(m) ||
+    /\blist\s+ads?\b/.test(m)
+  );
+}
+
+function parseAdsListTimeRange(message: string): { since?: string; until?: string } {
+  const raw = String(message || "");
+  const iso = raw.match(/\b\d{4}-\d{2}-\d{2}\b/g) || [];
+  const asDate = (s: string) => {
+    const d = new Date(`${s}T00:00:00Z`);
+    return Number.isNaN(d.getTime()) ? null : d;
+  };
+  const formatYmd = (d: Date) => {
+    const y = d.getUTCFullYear();
+    const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(d.getUTCDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
+  if (iso.length >= 2) {
+    const s1 = iso[0];
+    const s2 = iso[1];
+    if (!s1 || !s2) return {};
+    const d1 = asDate(s1);
+    const d2 = asDate(s2);
+    if (d1 && d2) {
+      return d1 <= d2 ? { since: s1, until: s2 } : { since: s2, until: s1 };
+    }
+  }
+  if (iso.length === 1) {
+    const s = iso[0];
+    if (!s) return {};
+    const only = asDate(s);
+    if (only) return { since: s, until: s };
+  }
+
+  const m = normalizeMessage(message);
+  const now = new Date();
+  const today = formatYmd(now);
+  if (/\btoday\b/.test(m)) return { since: today, until: today };
+  if (/\blast\s*7\s*days\b/.test(m)) {
+    const s = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
+    return { since: formatYmd(s), until: today };
+  }
+  if (/\blast\s*30\s*days\b/.test(m)) {
+    const s = new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000);
+    return { since: formatYmd(s), until: today };
+  }
+  if (/\bthis\s*month\b/.test(m)) {
+    const s = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    return { since: formatYmd(s), until: today };
+  }
+  return {};
+}
+
+function isMetaDailyTableIntent(message: string): boolean {
+  const m = normalizeMessage(message);
+  const hasMeta = /\b(?:meta|facebook|ads?|campaign|spend|leads?|cpl|cpc|cpa)\b/.test(m);
+  const has30d = /\b(?:last 30 days|30 days|1 to 30)\b/.test(m);
+  const wantsDayWise = /\b(?:daily|day wise|daywise|every day|each day|date wise|datewise)\b/.test(m);
+  const wantsTable = /\b(?:table|tabular|all data|full data|detailed|every details)\b/.test(m);
+  return hasMeta && has30d && (wantsDayWise || wantsTable);
+}
+
 function isGa4Intent(message: string): boolean {
   const m = normalizeMessage(message);
   return /\b(?:ga4|analytics|sessions?|active users|traffic|page views|top city)\b/.test(m);
 }
 
+function isExportFileIntent(message: string): boolean {
+  const m = normalizeMessage(message);
+  const hasExport = /\b(?:pdf|download|downloadable|export|file|doc|document)\b/.test(m);
+  const hasTransform = /\b(?:make|convert|create|save|send|generate)\b/.test(m);
+  return hasExport && hasTransform;
+}
+
 function defaultToolBundleForMessage(message: string): string[] {
   const m = normalizeMessage(message);
   const tools = new Set<string>();
+
+  if (isExportFileIntent(m)) {
+    return [];
+  }
+
+  if (isMetaDailyTableIntent(m)) {
+    tools.add("get_meta_daily_breakdown_last_30d");
+    return Array.from(tools);
+  }
 
   if (/yesterday/.test(m) && /ga4.*active users|active users.*ga4/.test(m)) {
     tools.add("get_ga4_active_users_yesterday");
@@ -1203,6 +1334,22 @@ function defaultToolBundleForMessage(message: string): string[] {
 function buildAdvisorAnswer(message: string, toolResults: Array<{ name: string; result: any }>): string {
   const m = normalizeMessage(message);
   const lines: string[] = [];
+  const daily30 = toolResults.find((tr) => tr.name === "get_meta_daily_breakdown_last_30d");
+  if (daily30) {
+    const summary = daily30.result?.totals || {};
+    const currency = String(daily30.result?.currency || "INR");
+    return [
+      "Meta last 30 days daily table:",
+      "",
+      formatToolAnswer("get_meta_daily_breakdown_last_30d", daily30.result),
+      "",
+      `Totals: Spend ${formatCurrency(Number(summary.spend ?? 0), currency)}, Leads ${formatNumber(
+        Number(summary.leads ?? 0)
+      )}, Impressions ${formatNumber(Number(summary.impressions ?? 0))}, Clicks ${formatNumber(
+        Number(summary.clicks ?? 0)
+      )}.`,
+    ].join("\n");
+  }
 
   if (toolResults.length) {
     lines.push("Here is your current snapshot:");
@@ -1526,6 +1673,99 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
           .filter((h) => !!h.text)
       : [];
     const normalizedMessage = normalizeMessage(userMessage);
+
+    if (isChatGptStyleToolsModeEnabled()) {
+      const historyForLlm: LlmChatMessage[] = priorTurns.map((m) => ({
+        role: m.role,
+        content: String(m.text || ""),
+      })) as LlmChatMessage[];
+
+      const messages1: LlmChatMessage[] = [
+        { role: "system", content: DEFAULT_SYSTEM_PROMPT },
+        ...historyForLlm,
+        { role: "user", content: userMessage },
+      ];
+
+      const first = await openai.chat.completions.create({
+        model: getModel(),
+        messages: messages1 as any,
+        tools: TOOL_DEFS,
+        tool_choice: "auto",
+        temperature: 0.2,
+      });
+
+      const assistantMsg = first.choices[0]?.message;
+      const toolCalls = assistantMsg?.tool_calls || [];
+
+      if (!toolCalls.length) {
+        const text = String(assistantMsg?.content || "").trim();
+        return res.json({
+          ok: true,
+          answer: text || "No response generated.",
+          meta: { rid, mode: "chatgpt-style-no-tools" },
+        });
+      }
+
+      const toolMessages: LlmChatMessage[] = [];
+      const toolResults: Array<{ name: string; result: any }> = [];
+      for (const tc of toolCalls) {
+        if (tc?.type !== "function") continue;
+        const name = String(tc?.function?.name || "");
+        const argsRaw = String(tc?.function?.arguments || "{}");
+        let args: any = {};
+        try {
+          args = JSON.parse(argsRaw);
+        } catch {
+          args = {};
+        }
+
+        const result = await runLlmTool(
+          { name, arguments: args },
+          {
+            "x-api-key": String(req.header("x-api-key") || ""),
+            "x-meta-account-id": String(req.header("x-meta-account-id") || ""),
+          }
+        );
+        toolResults.push({ name, result });
+        toolMessages.push({
+          role: "tool",
+          tool_call_id: tc.id,
+          name,
+          content: typeof result === "string" ? result : JSON.stringify(result),
+        });
+      }
+
+      const messages2: LlmChatMessage[] = [
+        { role: "system", content: DEFAULT_SYSTEM_PROMPT },
+        ...historyForLlm,
+        { role: "user", content: userMessage },
+        {
+          role: "assistant",
+          content: String(assistantMsg?.content || ""),
+          tool_calls: toolCalls as any,
+        },
+        ...toolMessages,
+      ];
+
+      const second = await openai.chat.completions.create({
+        model: getModel(),
+        messages: messages2 as any,
+        temperature: Math.max(0.3, getOpenAITemperature()),
+      });
+
+      const finalText = String(second.choices[0]?.message?.content || "").trim();
+      return res.json({
+        ok: true,
+        answer: finalText || "No response generated.",
+        tools: toolResults,
+        meta: {
+          rid,
+          mode: "chatgpt-style-tools",
+          tools_called: toolCalls.map((t: any) => String(t?.function?.name || "")).filter(Boolean),
+        },
+      });
+    }
+
     const requestedMetaAccountId = req.header("x-meta-account-id") || "";
     const effectiveMetaAccountId = resolveBrandAwareAccountId(normalizedMessage, requestedMetaAccountId);
     const responseCacheKey = `${normalizedMessage}::${effectiveMetaAccountId || "-"}`;
@@ -1566,6 +1806,83 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
     // Enable via OPENAI_FIRST_WITH_TOOLS=true.
     if (isOpenAIFirstWithToolsEnabled()) {
       try {
+        if (isAdsListIntent(normalizedMessage)) {
+          const range = parseAdsListTimeRange(userMessage);
+          const adsListResult = await runTool("get_meta_ads_list", { limit: 30, ...range });
+          const adRows = Array.isArray(adsListResult?.rows) ? adsListResult.rows : [];
+          if (adRows.length > 0) {
+            const currency = String(adsListResult?.currency || "INR");
+            const topRows = adRows.slice(0, 30).map((r: any, idx: number) => {
+              const adId = String(r?.ad_id || "-");
+              const adName = String(r?.ad_name || `Ad ${idx + 1}`).replace(/\s+/g, " ").trim();
+              const campaign = String(r?.campaign_name || r?.campaign_id || "-").replace(/\s+/g, " ").trim();
+              const adset = String(r?.adset_name || r?.adset_id || "-").replace(/\s+/g, " ").trim();
+              const status = String(r?.status || "UNKNOWN");
+              const spend = formatCurrency(Number(r?.spend ?? 0), currency);
+              const leads = formatNumber(Number(r?.leads ?? 0));
+              return `| ${idx + 1} | ${adId} | ${adName} | ${campaign} | ${adset} | ${status} | ${spend} | ${leads} |`;
+            });
+            const since = String(adsListResult?.requested?.since || range.since || "-");
+            const until = String(adsListResult?.requested?.until || range.until || "-");
+            const answer = [
+              `I found ${formatNumber(Number(adsListResult?.count ?? adRows.length))} ads for the selected range.`,
+              `Showing top ${formatNumber(Math.min(30, adRows.length))} ads by spend.`,
+              `Range: ${since} to ${until}.`,
+              "",
+              "| # | Ad ID | Ad Name | Campaign | Adset | Status | Spend | Leads |",
+              "|---:|---|---|---|---|---|---:|---:|",
+              ...topRows,
+            ].join("\n");
+            const payload: ResponsePayload = {
+              ok: true,
+              answer,
+              tools: [{ name: "get_meta_ads_list", result: adsListResult }],
+              meta: { rid, mode: "openai-first-ads-list", conversation_id: conversationId || undefined },
+            };
+            return res.json(payload);
+          }
+
+          const adCountResult = await runTool("get_meta_ads_running_today", {});
+          const spendTodayResult = await runTool("get_meta_spend_today", {});
+          const spendMonthResult = await runTool("get_meta_spend_month", {});
+          const leadsTodayResult = await runTool("get_meta_leads_today", {});
+
+          const activeAds = Number(adCountResult?.active_ads ?? NaN);
+          const adsWithSpendToday = Number(adCountResult?.ads_with_spend_today ?? NaN);
+          const spendToday = Number(spendTodayResult?.spend ?? NaN);
+          const spendMonth = Number(spendMonthResult?.spend ?? NaN);
+          const leadsToday = Number(leadsTodayResult?.leads ?? NaN);
+          const currency = String(spendTodayResult?.currency || spendMonthResult?.currency || "INR");
+
+          const answer = [
+            "I can see active ads count but I cannot fetch the list of ad names/IDs right now from get_meta_ads_list (no rows returned or API failure).",
+            "",
+            "Closest available snapshot:",
+            `- Active ads: ${Number.isFinite(activeAds) ? formatNumber(activeAds) : "-"}`,
+            `- Ads with spend today: ${Number.isFinite(adsWithSpendToday) ? formatNumber(adsWithSpendToday) : "-"}`,
+            `- Spend today: ${Number.isFinite(spendToday) ? formatCurrency(spendToday, currency) : "-"}`,
+            `- Spend this month: ${Number.isFinite(spendMonth) ? formatCurrency(spendMonth, currency) : "-"}`,
+            `- Leads today: ${Number.isFinite(leadsToday) ? formatNumber(leadsToday) : "-"}`,
+            "",
+            "Next step:",
+            "- Ensure get_meta_ads_list returns ad_id, ad_name, status, spend, leads for this account and date range.",
+          ].join("\n");
+
+          const payload: ResponsePayload = {
+            ok: true,
+            answer,
+            tools: [
+              { name: "get_meta_ads_list", result: adsListResult },
+              { name: "get_meta_ads_running_today", result: adCountResult },
+              { name: "get_meta_spend_today", result: spendTodayResult },
+              { name: "get_meta_spend_month", result: spendMonthResult },
+              { name: "get_meta_leads_today", result: leadsTodayResult },
+            ],
+            meta: { rid, mode: "openai-first-ads-list-fallback", conversation_id: conversationId || undefined },
+          };
+          return res.json(payload);
+        }
+
         const allowed = getAllowedMetaAccountIds();
         const openaiToolAnswer = await answerFromOpenAIWithTools(
           userMessage,
@@ -2404,6 +2721,19 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
             answer: `[mode: openai-forced-all+tools | model: ${getModel()}]\n${openaiToolAnswer.answer}`,
             tools: openaiToolAnswer.tools,
             meta: { rid, mode: "openai-forced-all-tools" },
+          };
+          setCachedResponse(responseCacheKey, payload);
+          return res.json(payload);
+        }
+
+        if (isExportFileIntent(normalizedMessage)) {
+          const payload: ResponsePayload = {
+            ok: true,
+            answer:
+              `[mode: openai-forced-all-export-info | model: ${getModel()}]\n` +
+              "PDF/download export is not enabled in this backend yet. I can return structured table text, but not a downloadable file from chat right now.",
+            tools: [],
+            meta: { rid, mode: "openai-forced-all-export-info" },
           };
           setCachedResponse(responseCacheKey, payload);
           return res.json(payload);
