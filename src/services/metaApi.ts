@@ -506,6 +506,25 @@ export type MetaGeoBreakdownResult = {
   note?: string;
 };
 
+export type MetaTopRegionLeadRow = {
+  region: string;
+  leads: number;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  cpl: number | null;
+};
+
+export type MetaTopRegionsLeadsLast30dResult = {
+  ok: true;
+  tool: "get_meta_top_regions_leads_last_30d";
+  timezone: "Asia/Kolkata";
+  as_of_ist: string;
+  currency: string | null;
+  period: "last_30_days";
+  rows: MetaTopRegionLeadRow[];
+};
+
 export async function getMetaSpendToday(accountId?: string): Promise<MetaSpendResult> {
   const env = getMetaEnv(accountId);
   const { since, until } = todayDatePresetForIST();
@@ -960,6 +979,62 @@ export async function getMetaGeoBreakdown(
     count: rows.length,
     rows,
     ...(note ? { note } : {}),
+  };
+}
+
+export async function getMetaTopRegionsLeadsLast30d(accountId?: string): Promise<MetaTopRegionsLeadsLast30dResult> {
+  const env = getMetaEnv(accountId);
+  const fields = ["spend", "impressions", "clicks", "actions", "account_currency"].join(",");
+  const params = encodeParams({
+    access_token: env.META_ACCESS_TOKEN,
+    level: "ad",
+    fields,
+    breakdowns: "region",
+    date_preset: "last_30d",
+    limit: 5000,
+  });
+  const url = `https://graph.facebook.com/${env.META_API_VERSION}/${env.META_AD_ACCOUNT_ID}/insights?${params}`;
+  const data = await metaFetchJson(url);
+  const rowsRaw = Array.isArray(data?.data) ? data.data : [];
+
+  const agg = new Map<string, { leads: number; spend: number; impressions: number; clicks: number }>();
+  for (const r of rowsRaw) {
+    const region = String(r?.region || "Unknown").trim() || "Unknown";
+    const leads = extractLeadsFromActions(r?.actions);
+    const spend = parseNumberLoose(r?.spend);
+    const impressions = parseNumberLoose(r?.impressions);
+    const clicks = parseNumberLoose(r?.clicks);
+    const prev = agg.get(region) || { leads: 0, spend: 0, impressions: 0, clicks: 0 };
+    prev.leads += leads;
+    prev.spend += spend;
+    prev.impressions += impressions;
+    prev.clicks += clicks;
+    agg.set(region, prev);
+  }
+
+  const rows: MetaTopRegionLeadRow[] = Array.from(agg.entries())
+    .map(([region, v]) => ({
+      region,
+      leads: v.leads,
+      spend: Number(v.spend.toFixed(2)),
+      impressions: v.impressions,
+      clicks: v.clicks,
+      cpl: v.leads > 0 ? Number((v.spend / v.leads).toFixed(2)) : null,
+    }))
+    .sort((a, b) => (b.leads - a.leads) || (b.spend - a.spend))
+    .slice(0, 5);
+
+  const currency =
+    typeof rowsRaw?.[0]?.account_currency === "string" ? String(rowsRaw[0].account_currency) : null;
+
+  return {
+    ok: true,
+    tool: "get_meta_top_regions_leads_last_30d",
+    timezone: "Asia/Kolkata",
+    as_of_ist: istNowIso(),
+    currency,
+    period: "last_30_days",
+    rows,
   };
 }
 

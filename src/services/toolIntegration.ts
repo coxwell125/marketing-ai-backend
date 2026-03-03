@@ -12,6 +12,7 @@ import {
   getMetaDailyBreakdownLast30d,
   getMetaAdsList,
   getMetaGeoBreakdown,
+  getMetaTopRegionsLeadsLast30d,
   getInstagramReelsToday,
   getInstagramReelsMonth,
   getInstagramReelsLast30Days,
@@ -38,6 +39,7 @@ import {
   getGa4ActiveUsersByCity,
   getGa4SessionsBySourceMedium,
   getGa4TopPagesScreens,
+  getGa4TopCitiesLast30d,
 } from "./ga4Api";
 
 type AnyJson = Record<string, any>;
@@ -302,6 +304,75 @@ function makeLocalMock(toolName: string, args: AnyJson = {}, reason = "Fallback 
       },
       count: rows.length,
       rows,
+      _mock: { used: true, reason },
+    };
+  }
+
+  if (toolName === "get_meta_top_regions_leads_last_30d") {
+    const rows = ["Maharashtra", "Delhi", "Karnataka", "Tamil Nadu", "Telangana"].map((region, i) => {
+      const leads = stableNumber(`${toolName}|leads|${today}|${region}`, 1, 80);
+      const spend = stableNumber(`${toolName}|spend|${today}|${region}`, 500, 12000);
+      return {
+        region,
+        leads,
+        spend,
+        impressions: stableNumber(`${toolName}|imp|${today}|${region}`, 1000, 90000),
+        clicks: stableNumber(`${toolName}|clk|${today}|${region}`, 20, 3000),
+        cpl: leads > 0 ? Number((spend / leads).toFixed(2)) : null,
+      };
+    });
+    rows.sort((a, b) => (b.leads - a.leads) || (b.spend - a.spend));
+    return {
+      ok: true,
+      tool: toolName,
+      timezone: "Asia/Kolkata",
+      as_of_ist: asOf,
+      currency: process.env.META_CURRENCY || "INR",
+      period: "last_30_days",
+      rows: rows.slice(0, 5),
+      _mock: { used: true, reason },
+    };
+  }
+
+  if (toolName === "get_ga4_top_cities_last_30d") {
+    const rows = ["Mumbai", "Delhi", "Bengaluru", "Pune", "Hyderabad"].map((city) => {
+      const sessions = stableNumber(`${toolName}|sessions|${today}|${city}`, 20, 4000);
+      const activeUsers = stableNumber(`${toolName}|users|${today}|${city}`, 10, 2500);
+      const conversions = stableNumber(`${toolName}|conv|${today}|${city}`, 0, 200);
+      return {
+        city,
+        sessions,
+        active_users: activeUsers,
+        conversions,
+        conversion_rate: sessions > 0 ? Number(((conversions / sessions) * 100).toFixed(2)) : null,
+      };
+    });
+    rows.sort((a, b) => (b.conversions - a.conversions) || (b.sessions - a.sessions));
+    return {
+      ok: true,
+      tool: toolName,
+      period: "last_30_days",
+      timezone: process.env.GA4_TIMEZONE || "Asia/Kolkata",
+      as_of_ist: asOf,
+      rows: rows.slice(0, 5),
+      _mock: { used: true, reason },
+    };
+  }
+
+  if (toolName === "get_crm_top_cities_leads_last_30d") {
+    const rows = ["Mumbai", "Delhi", "Bengaluru", "Pune", "Hyderabad"].map((city) => ({
+      city,
+      lead_count: stableNumber(`${toolName}|leads|${today}|${city}`, 0, 80),
+    }));
+    rows.sort((a, b) => b.lead_count - a.lead_count);
+    return {
+      ok: true,
+      tool: toolName,
+      period: "last_30_days",
+      timezone: "Asia/Kolkata",
+      as_of_ist: asOf,
+      rows: rows.slice(0, 5),
+      note: "Mock CRM city leads used as fallback.",
       _mock: { used: true, reason },
     };
   }
@@ -711,6 +782,46 @@ function makeLocalMock(toolName: string, args: AnyJson = {}, reason = "Fallback 
   return null;
 }
 
+async function fetchCrmTopCitiesLeadsLast30d(): Promise<any> {
+  const apiUrl = String(process.env.CRM_LEADS_API_URL || "").trim();
+  if (!apiUrl) {
+    return {
+      ok: true,
+      tool: "get_crm_top_cities_leads_last_30d",
+      period: "last_30_days",
+      timezone: "Asia/Kolkata",
+      as_of_ist: istNowIso(),
+      rows: [],
+      note: "CRM_LEADS_API_URL is not configured.",
+    };
+  }
+
+  const url = `${apiUrl}${apiUrl.includes("?") ? "&" : "?"}days=30&limit=5`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`CRM API request failed (${res.status})`);
+  }
+  const json: any = await res.json();
+  const rowsRaw = Array.isArray(json?.rows) ? json.rows : [];
+  const rows = rowsRaw
+    .map((r: any) => ({
+      city: String(r?.city || "").trim() || "(not set)",
+      lead_count: Number(r?.lead_count ?? r?.leads ?? 0) || 0,
+    }))
+    .filter((r: any) => r.lead_count >= 0)
+    .sort((a: any, b: any) => b.lead_count - a.lead_count)
+    .slice(0, 5);
+  return {
+    ok: true,
+    tool: "get_crm_top_cities_leads_last_30d",
+    period: "last_30_days",
+    timezone: "Asia/Kolkata",
+    as_of_ist: istNowIso(),
+    rows,
+    ...(json?.note ? { note: String(json.note) } : {}),
+  };
+}
+
 // We keep GA4 toggle inside ga4Api.ts (ENABLE_GA4_API). This function stays generic.
 async function callToolWithFallback(toolName: string, args: AnyJson, primary: () => Promise<any>) {
   // Primary path (Meta enabled OR GA4 enabled inside primary)
@@ -913,6 +1024,19 @@ export const toolDefs: ToolDef[] = [
       ),
   },
   {
+    name: "get_meta_top_regions_leads_last_30d",
+    description: "Returns top 5 Meta regions by leads for last 30 days with spend/impressions/clicks/CPL.",
+    inputSchema: {
+      type: "object",
+      properties: { account_id: { type: "string" } },
+      additionalProperties: false,
+    },
+    handler: async (args) =>
+      callToolWithFallback("get_meta_top_regions_leads_last_30d", args || {}, () =>
+        getMetaTopRegionsLeadsLast30d(args?.account_id)
+      ),
+  },
+  {
     name: "get_meta_best_campaign",
     description:
       "Returns best performing Meta campaign by period (today/this_month/maximum) by Leads (tie-breaker: lowest CPC). Also returns leaderboard.",
@@ -995,6 +1119,24 @@ export const toolDefs: ToolDef[] = [
   },
 
   // ---------------- GA4 ----------------
+  {
+    name: "get_ga4_top_cities_last_30d",
+    description:
+      "Returns top 5 GA4 cities for last 30 days with sessions, active users, conversions and conversion rate.",
+    inputSchema: { type: "object", properties: { account_id: { type: "string" } }, additionalProperties: false },
+    handler: async (args) =>
+      callToolWithFallback("get_ga4_top_cities_last_30d", args || {}, () => getGa4TopCitiesLast30d(args?.account_id)),
+  },
+  {
+    name: "get_crm_top_cities_leads_last_30d",
+    description:
+      "Returns top 5 CRM cities by lead_count for last 30 days. Uses CRM_LEADS_API_URL if configured.",
+    inputSchema: { type: "object", properties: { account_id: { type: "string" } }, additionalProperties: false },
+    handler: async (args) =>
+      callToolWithFallback("get_crm_top_cities_leads_last_30d", args || {}, async () =>
+        fetchCrmTopCitiesLeadsLast30d()
+      ),
+  },
   {
     name: "get_ga4_active_users_today",
     description: "Returns GA4 active users for today.",

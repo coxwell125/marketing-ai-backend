@@ -912,3 +912,72 @@ export async function getGa4TopPagesScreens(
     rows,
   };
 }
+
+export async function getGa4TopCitiesLast30d(accountId?: string): Promise<
+  Ga4Base & {
+    tool: "get_ga4_top_cities_last_30d";
+    period: "last_30_days";
+    rows: Array<{
+      city: string;
+      sessions: number;
+      active_users: number;
+      conversions: number;
+      conversion_rate: number | null;
+    }>;
+    note?: string;
+  }
+> {
+  if (!isGa4Enabled()) throw new Error("ENABLE_GA4_API=false");
+  const client = getClient();
+  const { startDate, endDate } = rangeForPeriod("last_30_days");
+
+  const run = async (conversionMetric: "conversions" | "keyEvents") => {
+    const [resp] = await client.runReport({
+      property: getProperty(accountId),
+      dateRanges: [{ startDate, endDate }],
+      dimensions: [{ name: "city" }],
+      metrics: [{ name: "sessions" }, { name: "activeUsers" }, { name: conversionMetric }],
+      orderBys: [{ metric: { metricName: conversionMetric }, desc: true }],
+      limit: 50,
+    });
+    return resp;
+  };
+
+  let resp: any;
+  let note: string | undefined;
+  try {
+    resp = await run("conversions");
+  } catch {
+    resp = await run("keyEvents");
+    note = "GA4 'conversions' metric unavailable for this property; using 'keyEvents' as conversion proxy.";
+  }
+
+  const rows =
+    resp.rows?.map((r: any) => {
+      const sessions = Number(r.metricValues?.[0]?.value || 0) || 0;
+      const activeUsers = Number(r.metricValues?.[1]?.value || 0) || 0;
+      const conversions = Number(r.metricValues?.[2]?.value || 0) || 0;
+      return {
+        city: String(r.dimensionValues?.[0]?.value || "").trim() || "(not set)",
+        sessions,
+        active_users: activeUsers,
+        conversions,
+        conversion_rate: sessions > 0 ? Number(((conversions / sessions) * 100).toFixed(2)) : null,
+      };
+    }) ?? [];
+
+  rows.sort((a: any, b: any) => {
+    if (b.conversions !== a.conversions) return b.conversions - a.conversions;
+    return b.sessions - a.sessions;
+  });
+
+  return {
+    ok: true,
+    tool: "get_ga4_top_cities_last_30d",
+    period: "last_30_days",
+    timezone: getTimezone(),
+    as_of_ist: nowIso(),
+    rows: rows.slice(0, 5),
+    ...(note ? { note } : {}),
+  };
+}

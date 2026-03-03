@@ -1,4 +1,4 @@
-// src/routes/chat.ts
+﻿// src/routes/chat.ts
 import { Router, Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import OpenAI from "openai";
@@ -677,6 +677,41 @@ function formatToolAnswer(tool: string, result: any): string {
     const note = result?.note ? `\nNote: ${String(result.note)}` : "";
     return `Meta geo breakdown (${breakdown}) returned ${formatNumber(count)} row(s):\n${top.join("\n")}${note}`;
   }
+  if (tool === "get_ga4_top_cities_last_30d") {
+    const rows = Array.isArray(result?.rows) ? result.rows : [];
+    if (!rows.length) return "No GA4 city rows were returned for last 30 days.";
+    const lines = rows.slice(0, 5).map((r: any, i: number) => {
+      const city = String(r?.city || "(not set)");
+      const conv = formatNumber(Number(r?.conversions ?? 0));
+      const sessions = formatNumber(Number(r?.sessions ?? 0));
+      const rate = Number.isFinite(Number(r?.conversion_rate)) ? `${formatNumber(Number(r?.conversion_rate))}%` : "-";
+      return `${i + 1}. ${city} | Conversions ${conv} | Sessions ${sessions} | Conv Rate ${rate}`;
+    });
+    return `GA4 top cities (last 30 days):\n${lines.join("\n")}`;
+  }
+  if (tool === "get_meta_top_regions_leads_last_30d") {
+    const rows = Array.isArray(result?.rows) ? result.rows : [];
+    if (!rows.length) return "No Meta region rows were returned for last 30 days.";
+    const currency = String(result?.currency || "INR");
+    const lines = rows.slice(0, 5).map((r: any, i: number) => {
+      const region = String(r?.region || "Unknown");
+      const leads = formatNumber(Number(r?.leads ?? 0));
+      const spend = formatCurrency(Number(r?.spend ?? 0), currency);
+      const cpl = Number.isFinite(Number(r?.cpl)) ? formatCurrency(Number(r?.cpl), currency) : "-";
+      return `${i + 1}. ${region} | Leads ${leads} | Spend ${spend} | CPL ${cpl}`;
+    });
+    return `Meta top regions by leads (last 30 days):\n${lines.join("\n")}`;
+  }
+  if (tool === "get_crm_top_cities_leads_last_30d") {
+    const rows = Array.isArray(result?.rows) ? result.rows : [];
+    if (!rows.length) return "No CRM city lead rows available for last 30 days.";
+    const lines = rows.slice(0, 5).map((r: any, i: number) => {
+      const city = String(r?.city || "(not set)");
+      const leads = formatNumber(Number(r?.lead_count ?? 0));
+      return `${i + 1}. ${city} | Leads ${leads}`;
+    });
+    return `CRM top cities by leads (last 30 days):\n${lines.join("\n")}`;
+  }
 
   if (tool === "get_meta_spend_today") {
     const spend = Number(result.spend ?? 0);
@@ -987,7 +1022,7 @@ function parseRequestedHours(message: string): number | null {
 
 function parseBudgetInr(message: string): number | null {
   const m = normalizeMessage(message);
-  const budgetPattern = /(?:rs|inr|₹)?\s*([0-9][0-9,]{3,})\s*(?:per\s*month|monthly|month|\/month)?/i;
+  const budgetPattern = /(?:rs|inr|â‚¹)?\s*([0-9][0-9,]{3,})\s*(?:per\s*month|monthly|month|\/month)?/i;
   const match = m.match(budgetPattern);
   if (!match) return null;
   const value = Number(String(match[1] || "").replace(/,/g, ""));
@@ -1202,7 +1237,7 @@ function fallbackUniversalAnswer(rawMessage: string): string {
     "3. Run 3 focused experiments with clear success criteria.",
     "4. Keep winners, stop losers, and iterate weekly.",
     "",
-    "If you want, ask again with your objective and timeframe, and I’ll give a precise action plan.",
+    "If you want, ask again with your objective and timeframe, and Iâ€™ll give a precise action plan.",
   ].join("\n");
 }
 
@@ -1245,6 +1280,18 @@ function detectGeoBreakdownFromMessage(message: string): "country" | "region" | 
   if (/\b(city|cities)\b/.test(m)) return "city";
   if (/\b(region|regions|state|states)\b/.test(m)) return "region";
   return "country";
+}
+
+function isCitiesGeneratingLeadsIntent(message: string): boolean {
+  const m = normalizeMessage(message);
+  const hasGeo = /\b(city|cities|geography|geographic|location|locations)\b/.test(m);
+  const hasLead = /\b(lead|leads|generating leads|lead generation)\b/.test(m);
+  return hasGeo && hasLead;
+}
+
+function isMetaCityLeadsIntent(message: string): boolean {
+  const m = normalizeMessage(message);
+  return isCitiesGeneratingLeadsIntent(m) && /\b(meta|facebook|ads?|campaign)\b/.test(m);
 }
 
 function parseTopCount(message: string, fallback = 20, max = 50): number {
@@ -1336,6 +1383,17 @@ function defaultToolBundleForMessage(message: string): string[] {
 
   if (isMetaDailyTableIntent(m)) {
     tools.add("get_meta_daily_breakdown_last_30d");
+    return Array.from(tools);
+  }
+
+  if (isMetaCityLeadsIntent(m)) {
+    tools.add("get_meta_top_regions_leads_last_30d");
+    return Array.from(tools);
+  }
+
+  if (isCitiesGeneratingLeadsIntent(m)) {
+    tools.add("get_crm_top_cities_leads_last_30d");
+    tools.add("get_ga4_top_cities_last_30d");
     return Array.from(tools);
   }
 
@@ -1523,6 +1581,9 @@ function overlapScore(queryTokens: string[], candidateTokens: string[]): number 
 function inferToolFromText(text: string): string | null {
   const m = normalizeMessage(text);
 
+  if (isMetaCityLeadsIntent(m)) return "get_meta_top_regions_leads_last_30d";
+  if (isCitiesGeneratingLeadsIntent(m)) return "get_crm_top_cities_leads_last_30d";
+
   if (m.includes("best campaign") || (m.includes("campaign") && m.includes("best")))
     return "get_meta_best_campaign";
   if (isPoorPerformanceIntent(m)) return "get_meta_best_campaign";
@@ -1663,9 +1724,12 @@ function setCachedResponse(key: string, payload: ResponsePayload): void {
   }
 }
 
-// ✅ deterministic mapping so UI works even without OpenAI
+// âœ… deterministic mapping so UI works even without OpenAI
 function mapMessageToTool(message: string): string | null {
   const m = normalizeMessage(message);
+
+  if (isMetaCityLeadsIntent(m)) return "get_meta_top_regions_leads_last_30d";
+  if (isCitiesGeneratingLeadsIntent(m)) return "get_crm_top_cities_leads_last_30d";
 
   // Meta
   if (m.includes("best campaign") || (m.includes("campaign") && m.includes("best")))
@@ -1828,6 +1892,100 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
     } as const;
     const runTool = (name: string, args: Record<string, any> = {}) =>
       runToolByName(name, args, toolContext);
+
+    // Deterministic geo-lead routing:
+    // 1) Meta city-leads ask -> region fallback tool (Meta does not reliably provide city-lead breakdown)
+    // 2) Generic city-leads ask -> CRM first, then GA4 cities
+    if (isCitiesGeneratingLeadsIntent(normalizedMessage)) {
+      const rangeLabel = "Last 30 Days";
+      const topN = Math.min(5, parseTopCount(userMessage, 5, 5));
+
+      const tableFromRows = (rows: Array<{
+        label: string;
+        metric: string;
+        spend: string;
+        cpl: string;
+        notes: string;
+      }>) =>
+        [
+          `Date Range: ${rangeLabel}`,
+          "",
+          "| Rank | City/Region | Leads/Conversions | Spend | CPL | Notes |",
+          "|---:|---|---:|---:|---:|---|",
+          ...(rows.length
+            ? rows.map(
+                (r, idx) =>
+                  `| ${idx + 1} | ${r.label} | ${r.metric} | ${r.spend} | ${r.cpl} | ${r.notes} |`
+              )
+            : ["| - | No data | 0 | - | - | No rows returned for this range. |"]),
+        ].join("\n");
+
+      if (isMetaCityLeadsIntent(normalizedMessage)) {
+        const result = await runTool("get_meta_top_regions_leads_last_30d", {});
+        const rowsRaw = Array.isArray(result?.rows) ? result.rows.slice(0, topN) : [];
+        const currency = String(result?.currency || "INR");
+        const rows = rowsRaw.map((r: any) => ({
+          label: String(r?.region || "Unknown"),
+          metric: formatNumber(Number(r?.leads ?? 0)),
+          spend: formatCurrency(Number(r?.spend ?? 0), currency),
+          cpl: Number.isFinite(Number(r?.cpl)) ? formatCurrency(Number(r?.cpl), currency) : "-",
+          notes: "Meta region fallback (city-wise lead breakdown is unreliable).",
+        }));
+        const answer =
+          "Meta doesn't reliably provide city-wise lead breakdown; showing region-wise leads instead.\n\n" +
+          tableFromRows(rows);
+        const payload: ResponsePayload = {
+          ok: true,
+          answer,
+          tools: [{ name: "get_meta_top_regions_leads_last_30d", result }],
+          meta: { rid, mode: "city-leads-meta-region-fallback", conversation_id: conversationId || undefined },
+        };
+        setCachedResponse(responseCacheKey, payload);
+        return res.json(payload);
+      }
+
+      const crm = await runTool("get_crm_top_cities_leads_last_30d", {});
+      const crmRows = Array.isArray(crm?.rows) ? crm.rows.slice(0, topN) : [];
+      if (crmRows.length > 0) {
+        const rows = crmRows.map((r: any) => ({
+          label: String(r?.city || "(not set)"),
+          metric: formatNumber(Number(r?.lead_count ?? 0)),
+          spend: "-",
+          cpl: "-",
+          notes: "CRM lead records",
+        }));
+        const payload: ResponsePayload = {
+          ok: true,
+          answer: tableFromRows(rows),
+          tools: [{ name: "get_crm_top_cities_leads_last_30d", result: crm }],
+          meta: { rid, mode: "city-leads-crm", conversation_id: conversationId || undefined },
+        };
+        setCachedResponse(responseCacheKey, payload);
+        return res.json(payload);
+      }
+
+      const ga4 = await runTool("get_ga4_top_cities_last_30d", {});
+      const ga4Rows = Array.isArray(ga4?.rows) ? ga4.rows.slice(0, topN) : [];
+      const rows = ga4Rows.map((r: any) => ({
+        label: String(r?.city || "(not set)"),
+        metric: formatNumber(Number(r?.conversions ?? 0)),
+        spend: "-",
+        cpl: "-",
+        notes: "Showing city-wise conversions from website analytics (GA4).",
+      }));
+      const note = "Showing city-wise conversions from website analytics (GA4).";
+      const payload: ResponsePayload = {
+        ok: true,
+        answer: `${note}\n\n${tableFromRows(rows)}`,
+        tools: [
+          { name: "get_crm_top_cities_leads_last_30d", result: crm },
+          { name: "get_ga4_top_cities_last_30d", result: ga4 },
+        ],
+        meta: { rid, mode: "city-leads-ga4-fallback", conversation_id: conversationId || undefined },
+      };
+      setCachedResponse(responseCacheKey, payload);
+      return res.json(payload);
+    }
 
     // Pure ChatGPT mode: bypass all tool routing/templates and return direct OpenAI answer only.
     if (isOpenAIDirectOnlyEnabled()) {
@@ -3292,7 +3450,7 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
       }
     }
 
-    // ✅ Fallback: mapping → tools
+    // âœ… Fallback: mapping â†’ tools
     // Force monthly spend intent before generic ad-spend mapping.
     if (hasSpendIntent(normalizedMessage) && /(month|monthly)/.test(normalizedMessage)) {
       const result = await runTool("get_meta_spend_month", {});
@@ -3492,3 +3650,5 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
 });
 
 export default router;
+
+
