@@ -212,6 +212,29 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "marketing-ai-backend" });
 });
 
+// Public root landing: avoid confusing Unauthorized at bare domain when auth is enabled.
+app.get("/", (_req, res) => {
+  if (disablePublicUi) {
+    return res.status(200).json({
+      ok: true,
+      service: "marketing-ai-backend",
+      message: "API is running. Use /health for status and /api/* with x-api-key for protected routes.",
+    });
+  }
+
+  if (protectUiWithAuth) {
+    return res.status(200).json({
+      ok: true,
+      service: "marketing-ai-backend",
+      message: "UI/API is protected. Provide x-api-key to access /ui and /api/* routes.",
+      ui: "/ui",
+      health: "/health",
+    });
+  }
+
+  return res.redirect(302, "/ui");
+});
+
 app.get(
   "/ui",
   ...(protectUiWithAuth ? [requireApiKey, requireRole(uiMinRole)] : []),

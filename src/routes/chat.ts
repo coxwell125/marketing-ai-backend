@@ -1234,7 +1234,7 @@ function isAdsListIntent(message: string): boolean {
 
 function isMetaGeoIntent(message: string): boolean {
   const m = normalizeMessage(message);
-  const hasMeta = /\b(?:meta|facebook|ad|ads|campaign)\b/.test(m);
+  const hasMeta = /\b(?:meta|facebook|ad|ads|campaign|coxwell|altis)\b/.test(m);
   const hasGeo = /\b(?:geo|geography|geographic|location|locations|country|countries|region|regions|city|cities)\b/.test(m);
   const hasTrafficSignal = /\b(?:click|clicks|clicked|impression|impressions|leads|lead|spend)\b/.test(m);
   return hasMeta && hasGeo && hasTrafficSignal;
@@ -1245,6 +1245,15 @@ function detectGeoBreakdownFromMessage(message: string): "country" | "region" | 
   if (/\b(city|cities)\b/.test(m)) return "city";
   if (/\b(region|regions|state|states)\b/.test(m)) return "region";
   return "country";
+}
+
+function parseTopCount(message: string, fallback = 20, max = 50): number {
+  const m = normalizeMessage(message);
+  const direct = m.match(/\btop\s+(\d{1,3})\b/);
+  const geo = m.match(/\b(\d{1,3})\s+(?:cities|city|countries|country|regions|region)\b/);
+  const raw = Number((direct?.[1] || geo?.[1] || "").trim());
+  if (!Number.isFinite(raw)) return fallback;
+  return Math.max(1, Math.min(max, Math.floor(raw)));
 }
 
 function parseAdsListTimeRange(message: string): { since?: string; until?: string } {
@@ -1852,14 +1861,39 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
         if (isMetaGeoIntent(normalizedMessage)) {
           const range = parseAdsListTimeRange(userMessage);
           const breakdown = detectGeoBreakdownFromMessage(normalizedMessage);
-          const geoResult = await runTool("get_meta_geo_breakdown", { limit: 20, breakdown, ...range });
-          const rows = Array.isArray(geoResult?.rows) ? geoResult.rows : [];
+          const limit = parseTopCount(userMessage, 20, 50);
+          let geoResult = await runTool("get_meta_geo_breakdown", { limit, breakdown, ...range });
+          let rows = Array.isArray(geoResult?.rows) ? geoResult.rows : [];
+          let effectiveBreakdown = String(geoResult?.requested?.breakdown || breakdown);
+
+          // If requested city returns no rows, fall back to region, then country.
+          if (!rows.length && breakdown === "city") {
+            const regionResult = await runTool("get_meta_geo_breakdown", { limit, breakdown: "region", ...range });
+            const regionRows = Array.isArray(regionResult?.rows) ? regionResult.rows : [];
+            if (regionRows.length) {
+              geoResult = regionResult;
+              rows = regionRows;
+              effectiveBreakdown = "region";
+            } else {
+              const countryResult = await runTool("get_meta_geo_breakdown", { limit, breakdown: "country", ...range });
+              const countryRows = Array.isArray(countryResult?.rows) ? countryResult.rows : [];
+              if (countryRows.length) {
+                geoResult = countryResult;
+                rows = countryRows;
+                effectiveBreakdown = "country";
+              }
+            }
+          }
+
           if (rows.length > 0) {
             const currency = String(geoResult?.currency || "INR");
             const table = [
-              `Meta geo breakdown by ${String(geoResult?.requested?.breakdown || breakdown)} (top ${formatNumber(
+              `Meta geo breakdown by ${effectiveBreakdown} (top ${formatNumber(
                 rows.length
               )} by clicks)`,
+              ...(breakdown !== effectiveBreakdown
+                ? [`City rows unavailable; showing ${effectiveBreakdown} breakdown instead.`, ""]
+                : []),
               ...(geoResult?.note ? [String(geoResult.note), ""] : []),
               "",
               "| # | Geo | Clicks | Impressions | CTR | Spend | Leads | CPC | CPL |",
@@ -2786,6 +2820,66 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
     // Useful when user wants pure ChatGPT-like behavior instead of deterministic tool routing.
     if (isForceOpenAIForAll() && process.env.OPENAI_API_KEY) {
       try {
+        if (isMetaGeoIntent(normalizedMessage)) {
+          const range = parseAdsListTimeRange(userMessage);
+          const breakdown = detectGeoBreakdownFromMessage(normalizedMessage);
+          const limit = parseTopCount(userMessage, 20, 50);
+          let geoResult = await runTool("get_meta_geo_breakdown", { limit, breakdown, ...range });
+          let rows = Array.isArray(geoResult?.rows) ? geoResult.rows : [];
+          let effectiveBreakdown = String(geoResult?.requested?.breakdown || breakdown);
+
+          if (!rows.length && breakdown === "city") {
+            const regionResult = await runTool("get_meta_geo_breakdown", { limit, breakdown: "region", ...range });
+            const regionRows = Array.isArray(regionResult?.rows) ? regionResult.rows : [];
+            if (regionRows.length) {
+              geoResult = regionResult;
+              rows = regionRows;
+              effectiveBreakdown = "region";
+            } else {
+              const countryResult = await runTool("get_meta_geo_breakdown", { limit, breakdown: "country", ...range });
+              const countryRows = Array.isArray(countryResult?.rows) ? countryResult.rows : [];
+              if (countryRows.length) {
+                geoResult = countryResult;
+                rows = countryRows;
+                effectiveBreakdown = "country";
+              }
+            }
+          }
+
+          if (rows.length > 0) {
+            const currency = String(geoResult?.currency || "INR");
+            const table = [
+              `Meta geo breakdown by ${effectiveBreakdown} (top ${formatNumber(rows.length)} by clicks)`,
+              ...(breakdown !== effectiveBreakdown
+                ? [`City rows unavailable; showing ${effectiveBreakdown} breakdown instead.`, ""]
+                : []),
+              ...(geoResult?.note ? [String(geoResult.note), ""] : []),
+              "",
+              "| # | Geo | Clicks | Impressions | CTR | Spend | Leads | CPC | CPL |",
+              "|---:|---|---:|---:|---:|---:|---:|---:|---:|",
+              ...rows.map((r: any, idx: number) => {
+                const ctr = Number.isFinite(Number(r?.ctr)) ? `${formatNumber(Number(r.ctr))}%` : "-";
+                const cpc = Number.isFinite(Number(r?.cpc)) ? formatCurrency(Number(r.cpc), currency) : "-";
+                const cpl = Number.isFinite(Number(r?.cpl)) ? formatCurrency(Number(r.cpl), currency) : "-";
+                return `| ${idx + 1} | ${String(r?.geo || "-")} | ${formatNumber(Number(r?.clicks ?? 0))} | ${formatNumber(
+                  Number(r?.impressions ?? 0)
+                )} | ${ctr} | ${formatCurrency(Number(r?.spend ?? 0), currency)} | ${formatNumber(
+                  Number(r?.leads ?? 0)
+                )} | ${cpc} | ${cpl} |`;
+              }),
+            ].join("\n");
+
+            const payload: ResponsePayload = {
+              ok: true,
+              answer: `[mode: openai-forced-all+tools | model: ${getModel()}]\n${table}`,
+              tools: [{ name: "get_meta_geo_breakdown", result: geoResult }],
+              meta: { rid, mode: "openai-forced-meta-geo" },
+            };
+            setCachedResponse(responseCacheKey, payload);
+            return res.json(payload);
+          }
+        }
+
         const allowed = getAllowedMetaAccountIds();
         const openaiToolAnswer = await answerFromOpenAIWithTools(
           userMessage,
