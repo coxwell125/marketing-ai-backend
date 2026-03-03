@@ -337,24 +337,23 @@ function makeLocalMock(toolName: string, args: AnyJson = {}, reason = "Fallback 
   if (toolName === "get_ga4_top_cities_last_30d") {
     const rows = ["Mumbai", "Delhi", "Bengaluru", "Pune", "Hyderabad"].map((city) => {
       const sessions = stableNumber(`${toolName}|sessions|${today}|${city}`, 20, 4000);
-      const activeUsers = stableNumber(`${toolName}|users|${today}|${city}`, 10, 2500);
-      const conversions = stableNumber(`${toolName}|conv|${today}|${city}`, 0, 200);
+      const leads = stableNumber(`${toolName}|leads|${today}|${city}`, 0, 200);
       return {
         city,
+        leads,
         sessions,
-        active_users: activeUsers,
-        conversions,
-        conversion_rate: sessions > 0 ? Number(((conversions / sessions) * 100).toFixed(2)) : null,
+        cvr: sessions > 0 ? Number(((leads / sessions) * 100).toFixed(2)) : null,
       };
     });
-    rows.sort((a, b) => (b.conversions - a.conversions) || (b.sessions - a.sessions));
+    rows.sort((a, b) => (b.leads - a.leads) || (b.sessions - a.sessions));
     return {
       ok: true,
       tool: toolName,
       period: "last_30_days",
       timezone: process.env.GA4_TIMEZONE || "Asia/Kolkata",
       as_of_ist: asOf,
-      rows: rows.slice(0, 5),
+      query: "mock:leads_by_city_last_30_days",
+      rows: rows.slice(0, 10),
       _mock: { used: true, reason },
     };
   }
@@ -362,16 +361,17 @@ function makeLocalMock(toolName: string, args: AnyJson = {}, reason = "Fallback 
   if (toolName === "get_crm_top_cities_leads_last_30d") {
     const rows = ["Mumbai", "Delhi", "Bengaluru", "Pune", "Hyderabad"].map((city) => ({
       city,
-      lead_count: stableNumber(`${toolName}|leads|${today}|${city}`, 0, 80),
+      leads: stableNumber(`${toolName}|leads|${today}|${city}`, 0, 80),
     }));
-    rows.sort((a, b) => b.lead_count - a.lead_count);
+    rows.sort((a, b) => b.leads - a.leads);
     return {
       ok: true,
       tool: toolName,
       period: "last_30_days",
       timezone: "Asia/Kolkata",
       as_of_ist: asOf,
-      rows: rows.slice(0, 5),
+      rows: rows.slice(0, 10),
+      query: "mock:crm_top_cities_last_30_days",
       note: "Mock CRM city leads used as fallback.",
       _mock: { used: true, reason },
     };
@@ -782,21 +782,16 @@ function makeLocalMock(toolName: string, args: AnyJson = {}, reason = "Fallback 
   return null;
 }
 
-async function fetchCrmTopCitiesLeadsLast30d(): Promise<any> {
+async function fetchCrmTopCitiesLeadsLast30d(brand?: string): Promise<any> {
   const apiUrl = String(process.env.CRM_LEADS_API_URL || "").trim();
   if (!apiUrl) {
-    return {
-      ok: true,
-      tool: "get_crm_top_cities_leads_last_30d",
-      period: "last_30_days",
-      timezone: "Asia/Kolkata",
-      as_of_ist: istNowIso(),
-      rows: [],
-      note: "CRM_LEADS_API_URL is not configured.",
-    };
+    throw new Error("CRM_LEADS_API_URL not configured");
   }
 
-  const url = `${apiUrl}${apiUrl.includes("?") ? "&" : "?"}days=30&limit=5`;
+  const qBrand = String(brand || "").trim().toLowerCase();
+  const url = `${apiUrl}${apiUrl.includes("?") ? "&" : "?"}days=30&limit=10${
+    qBrand ? `&brand=${encodeURIComponent(qBrand)}` : ""
+  }`;
   const res = await fetch(url);
   if (!res.ok) {
     throw new Error(`CRM API request failed (${res.status})`);
@@ -806,11 +801,11 @@ async function fetchCrmTopCitiesLeadsLast30d(): Promise<any> {
   const rows = rowsRaw
     .map((r: any) => ({
       city: String(r?.city || "").trim() || "(not set)",
-      lead_count: Number(r?.lead_count ?? r?.leads ?? 0) || 0,
+      leads: Number(r?.lead_count ?? r?.leads ?? 0) || 0,
     }))
-    .filter((r: any) => r.lead_count >= 0)
-    .sort((a: any, b: any) => b.lead_count - a.lead_count)
-    .slice(0, 5);
+    .filter((r: any) => r.leads >= 0)
+    .sort((a: any, b: any) => b.leads - a.leads)
+    .slice(0, 10);
   return {
     ok: true,
     tool: "get_crm_top_cities_leads_last_30d",
@@ -840,7 +835,7 @@ async function callToolWithFallback(toolName: string, args: AnyJson, primary: ()
       return {
         ok: false,
         tool: toolName,
-        error: "Live API failed",
+        error: primaryErr,
         primary_error: primaryErr,
       };
     }
@@ -1028,7 +1023,7 @@ export const toolDefs: ToolDef[] = [
     description: "Returns top 5 Meta regions by leads for last 30 days with spend/impressions/clicks/CPL.",
     inputSchema: {
       type: "object",
-      properties: { account_id: { type: "string" } },
+      properties: { account_id: { type: "string" }, brand: { type: "string" } },
       additionalProperties: false,
     },
     handler: async (args) =>
@@ -1122,19 +1117,29 @@ export const toolDefs: ToolDef[] = [
   {
     name: "get_ga4_top_cities_last_30d",
     description:
-      "Returns top 5 GA4 cities for last 30 days with sessions, active users, conversions and conversion rate.",
-    inputSchema: { type: "object", properties: { account_id: { type: "string" } }, additionalProperties: false },
+      "Returns top cities for last 30 days with leads/conversions, sessions, and CVR.",
+    inputSchema: {
+      type: "object",
+      properties: { account_id: { type: "string" }, brand: { type: "string" } },
+      additionalProperties: false,
+    },
     handler: async (args) =>
-      callToolWithFallback("get_ga4_top_cities_last_30d", args || {}, () => getGa4TopCitiesLast30d(args?.account_id)),
+      callToolWithFallback("get_ga4_top_cities_last_30d", args || {}, () =>
+        getGa4TopCitiesLast30d(args?.account_id, args?.brand)
+      ),
   },
   {
     name: "get_crm_top_cities_leads_last_30d",
     description:
-      "Returns top 5 CRM cities by lead_count for last 30 days. Uses CRM_LEADS_API_URL if configured.",
-    inputSchema: { type: "object", properties: { account_id: { type: "string" } }, additionalProperties: false },
+      "Returns top CRM cities by leads for last 30 days. Uses CRM_LEADS_API_URL if configured.",
+    inputSchema: {
+      type: "object",
+      properties: { account_id: { type: "string" }, brand: { type: "string" } },
+      additionalProperties: false,
+    },
     handler: async (args) =>
       callToolWithFallback("get_crm_top_cities_leads_last_30d", args || {}, async () =>
-        fetchCrmTopCitiesLeadsLast30d()
+        fetchCrmTopCitiesLeadsLast30d(args?.brand)
       ),
   },
   {

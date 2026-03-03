@@ -1,5 +1,6 @@
 // src/services/ga4Api.ts
 import { BetaAnalyticsDataClient } from "@google-analytics/data";
+import fs from "fs";
 import path from "path";
 
 function isGa4Enabled(): boolean {
@@ -38,11 +39,13 @@ function accountMapLookup(map: Record<string, string>, accountId?: string): stri
   return map[raw] || map[normalized] || map[stripped] || "";
 }
 
-function getProperty(accountId?: string): string {
+function getProperty(accountId?: string, brand?: string): string {
   const propertyMap = parseStringMapEnv("GA4_PROPERTY_ID_MAP");
   const mapped = accountMapLookup(propertyMap, accountId);
-  const pid = String(mapped || process.env.GA4_PROPERTY_ID || "").trim();
-  if (!pid) throw new Error("GA4_PROPERTY_ID not set");
+  const brandKey = String(brand || "").trim().toLowerCase();
+  const brandMapped = brandKey ? String(propertyMap[brandKey] || "").trim() : "";
+  const pid = String(mapped || brandMapped || process.env.GA4_PROPERTY_ID || "").trim();
+  if (!pid) throw new Error("GA4 property not configured for brand");
   return `properties/${pid}`;
 }
 
@@ -56,21 +59,67 @@ function getCredentialsPath(): string {
   return path.isAbsolute(keyPath) ? keyPath : path.join(process.cwd(), keyPath);
 }
 
-function getClient(): BetaAnalyticsDataClient {
-  const credentialsJson = String(process.env.GA4_CREDENTIALS_JSON || "").trim();
-  if (credentialsJson) {
-    let credentials: any;
-    try {
-      credentials = JSON.parse(credentialsJson);
-    } catch {
-      throw new Error("GA4_CREDENTIALS_JSON is not valid JSON");
+type Ga4CredentialSource = "json" | "path";
+
+let cachedCreds:
+  | {
+      source: Ga4CredentialSource;
+      credentials: Record<string, unknown>;
     }
-    return new BetaAnalyticsDataClient({ credentials });
+  | null = null;
+let loggedCredSource = false;
+
+function loadGa4Credentials(): { source: Ga4CredentialSource; credentials: Record<string, unknown> } {
+  if (cachedCreds) return cachedCreds;
+
+  const rawJson = String(process.env.GA4_CREDENTIALS_JSON || "").trim();
+  if (rawJson) {
+    try {
+      const parsed = JSON.parse(rawJson);
+      if (!parsed || typeof parsed !== "object") {
+        throw new Error("GA4_CREDENTIALS_JSON must be a JSON object");
+      }
+      cachedCreds = { source: "json", credentials: parsed as Record<string, unknown> };
+    } catch (err: any) {
+      throw new Error(`GA4_CREDENTIALS_JSON is not valid JSON: ${String(err?.message || err)}`);
+    }
+  } else {
+    const keyPath = String(process.env.GA4_CREDENTIALS_PATH || "").trim();
+    if (!keyPath) {
+      throw new Error(
+        "Missing GA4 credentials. Set GA4_CREDENTIALS_JSON (recommended for Vercel) or GA4_CREDENTIALS_PATH (local file path)."
+      );
+    }
+    const resolved = path.isAbsolute(keyPath) ? keyPath : path.join(process.cwd(), keyPath);
+    let fileContent = "";
+    try {
+      fileContent = fs.readFileSync(resolved, "utf8");
+    } catch (err: any) {
+      throw new Error(`Failed to read GA4_CREDENTIALS_PATH at ${resolved}: ${String(err?.message || err)}`);
+    }
+    try {
+      const parsed = JSON.parse(fileContent);
+      if (!parsed || typeof parsed !== "object") {
+        throw new Error("GA4_CREDENTIALS_PATH file must contain a JSON object");
+      }
+      cachedCreds = { source: "path", credentials: parsed as Record<string, unknown> };
+    } catch (err: any) {
+      throw new Error(`GA4_CREDENTIALS_PATH file is not valid JSON: ${String(err?.message || err)}`);
+    }
   }
 
-  return new BetaAnalyticsDataClient({
-    keyFilename: getCredentialsPath(),
-  });
+  if (!loggedCredSource && cachedCreds) {
+    const label = cachedCreds.source === "json" ? "GA4_CREDENTIALS_JSON" : "GA4_CREDENTIALS_PATH";
+    console.info(`[ga4] Using credentials from ${label}`);
+    loggedCredSource = true;
+  }
+
+  return cachedCreds!;
+}
+
+function getClient(): BetaAnalyticsDataClient {
+  const { credentials } = loadGa4Credentials();
+  return new BetaAnalyticsDataClient({ credentials });
 }
 
 function nowIso() {
@@ -89,6 +138,15 @@ export type Ga4Base = {
   timezone: string;
   as_of_ist: string;
 };
+
+function getLeadEventNameFromMap(accountId?: string, brand?: string): string | null {
+  const map = parseStringMapEnv("GA4_LEAD_EVENT_NAME_MAP");
+  const brandKey = String(brand || "").trim().toLowerCase();
+  const byBrand = brandKey ? String(map[brandKey] || "").trim() : "";
+  const byAccount = accountMapLookup(map, accountId);
+  const eventName = String(byBrand || byAccount || "").trim();
+  return eventName || null;
+}
 
 function rangeForPeriod(period: "today" | "yesterday" | "last_7_days" | "last_15_days" | "last_30_days"): {
   startDate: string;
@@ -913,61 +971,98 @@ export async function getGa4TopPagesScreens(
   };
 }
 
-export async function getGa4TopCitiesLast30d(accountId?: string): Promise<
+export async function getGa4TopCitiesLast30d(accountId?: string, brand?: string): Promise<
   Ga4Base & {
     tool: "get_ga4_top_cities_last_30d";
     period: "last_30_days";
     rows: Array<{
       city: string;
+      leads: number;
       sessions: number;
-      active_users: number;
-      conversions: number;
-      conversion_rate: number | null;
+      cvr: number | null;
     }>;
+    query: string;
     note?: string;
   }
 > {
-  if (!isGa4Enabled()) throw new Error("ENABLE_GA4_API=false");
+  if (!isGa4Enabled()) throw new Error("GA4 integration disabled");
   const client = getClient();
   const { startDate, endDate } = rangeForPeriod("last_30_days");
+  const leadEventName = getLeadEventNameFromMap(accountId, brand);
+  const property = getProperty(accountId, brand);
 
-  const run = async (conversionMetric: "conversions" | "keyEvents") => {
+  const runByMetric = async (conversionMetric: "conversions" | "keyEvents") => {
     const [resp] = await client.runReport({
-      property: getProperty(accountId),
+      property,
       dateRanges: [{ startDate, endDate }],
       dimensions: [{ name: "city" }],
-      metrics: [{ name: "sessions" }, { name: "activeUsers" }, { name: conversionMetric }],
+      metrics: [{ name: "sessions" }, { name: conversionMetric }],
       orderBys: [{ metric: { metricName: conversionMetric }, desc: true }],
-      limit: 50,
+      limit: 100,
+    });
+    return resp;
+  };
+
+  const runByLeadEvent = async (eventName: string) => {
+    const [resp] = await client.runReport({
+      property,
+      dateRanges: [{ startDate, endDate }],
+      dimensions: [{ name: "city" }],
+      metrics: [{ name: "sessions" }, { name: "eventCount" }],
+      dimensionFilter: {
+        filter: {
+          fieldName: "eventName",
+          stringFilter: { matchType: "EXACT", value: eventName, caseSensitive: false },
+        },
+      },
+      orderBys: [{ metric: { metricName: "eventCount" }, desc: true }],
+      limit: 100,
     });
     return resp;
   };
 
   let resp: any;
   let note: string | undefined;
+  let query = "metric:conversions";
+  let metricIndex = 1;
+
+  if (leadEventName) {
+    try {
+      resp = await runByLeadEvent(leadEventName);
+      query = `eventName=${leadEventName}`;
+    } catch (err: any) {
+      note = `Lead event filter '${leadEventName}' failed: ${String(err?.message || err)}. Falling back to conversions.`;
+    }
+  }
+
   try {
-    resp = await run("conversions");
+    if (!resp) {
+      resp = await runByMetric("conversions");
+      query = "metric:conversions";
+    }
   } catch {
-    resp = await run("keyEvents");
-    note = "GA4 'conversions' metric unavailable for this property; using 'keyEvents' as conversion proxy.";
+    resp = await runByMetric("keyEvents");
+    query = "metric:keyEvents";
+    metricIndex = 1;
+    note = note
+      ? `${note} GA4 'conversions' metric unavailable; using 'keyEvents'.`
+      : "GA4 'conversions' metric unavailable; using 'keyEvents'.";
   }
 
   const rows =
     resp.rows?.map((r: any) => {
       const sessions = Number(r.metricValues?.[0]?.value || 0) || 0;
-      const activeUsers = Number(r.metricValues?.[1]?.value || 0) || 0;
-      const conversions = Number(r.metricValues?.[2]?.value || 0) || 0;
+      const leads = Number(r.metricValues?.[metricIndex]?.value || 0) || 0;
       return {
         city: String(r.dimensionValues?.[0]?.value || "").trim() || "(not set)",
+        leads,
         sessions,
-        active_users: activeUsers,
-        conversions,
-        conversion_rate: sessions > 0 ? Number(((conversions / sessions) * 100).toFixed(2)) : null,
+        cvr: sessions > 0 ? Number(((leads / sessions) * 100).toFixed(2)) : null,
       };
     }) ?? [];
 
   rows.sort((a: any, b: any) => {
-    if (b.conversions !== a.conversions) return b.conversions - a.conversions;
+    if (b.leads !== a.leads) return b.leads - a.leads;
     return b.sessions - a.sessions;
   });
 
@@ -977,7 +1072,8 @@ export async function getGa4TopCitiesLast30d(accountId?: string): Promise<
     period: "last_30_days",
     timezone: getTimezone(),
     as_of_ist: nowIso(),
-    rows: rows.slice(0, 5),
+    rows: rows.slice(0, 10),
+    query,
     ...(note ? { note } : {}),
   };
 }

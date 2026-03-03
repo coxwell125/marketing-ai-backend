@@ -682,12 +682,13 @@ function formatToolAnswer(tool: string, result: any): string {
     if (!rows.length) return "No GA4 city rows were returned for last 30 days.";
     const lines = rows.slice(0, 5).map((r: any, i: number) => {
       const city = String(r?.city || "(not set)");
-      const conv = formatNumber(Number(r?.conversions ?? 0));
+      const leads = formatNumber(Number(r?.leads ?? 0));
       const sessions = formatNumber(Number(r?.sessions ?? 0));
-      const rate = Number.isFinite(Number(r?.conversion_rate)) ? `${formatNumber(Number(r?.conversion_rate))}%` : "-";
-      return `${i + 1}. ${city} | Conversions ${conv} | Sessions ${sessions} | Conv Rate ${rate}`;
+      const rate = Number.isFinite(Number(r?.cvr)) ? `${formatNumber(Number(r?.cvr))}%` : "-";
+      return `${i + 1}. ${city} | Leads/Conversions ${leads} | Sessions ${sessions} | CVR ${rate}`;
     });
-    return `GA4 top cities (last 30 days):\n${lines.join("\n")}`;
+    const query = String(result?.query || "metric:conversions");
+    return `GA4 top cities (last 30 days, ${query}):\n${lines.join("\n")}`;
   }
   if (tool === "get_meta_top_regions_leads_last_30d") {
     const rows = Array.isArray(result?.rows) ? result.rows : [];
@@ -704,10 +705,10 @@ function formatToolAnswer(tool: string, result: any): string {
   }
   if (tool === "get_crm_top_cities_leads_last_30d") {
     const rows = Array.isArray(result?.rows) ? result.rows : [];
-    if (!rows.length) return "No CRM city lead rows available for last 30 days.";
+    if (!rows.length) return `No CRM city lead rows available for last 30 days. Query: ${String(result?.query || "crm_top_cities_last_30d")}`;
     const lines = rows.slice(0, 5).map((r: any, i: number) => {
       const city = String(r?.city || "(not set)");
-      const leads = formatNumber(Number(r?.lead_count ?? 0));
+      const leads = formatNumber(Number(r?.leads ?? r?.lead_count ?? 0));
       return `${i + 1}. ${city} | Leads ${leads}`;
     });
     return `CRM top cities by leads (last 30 days):\n${lines.join("\n")}`;
@@ -1275,6 +1276,11 @@ function isMetaGeoIntent(message: string): boolean {
   return hasMeta && hasGeo && hasTrafficSignal;
 }
 
+function isGeoIntent(message: string): boolean {
+  const m = normalizeMessage(message);
+  return /\b(city|cities|location|locations|region|regions|state|states|area|where|geo|geography)\b/.test(m);
+}
+
 function detectGeoBreakdownFromMessage(message: string): "country" | "region" | "city" {
   const m = normalizeMessage(message);
   if (/\b(city|cities)\b/.test(m)) return "city";
@@ -1287,6 +1293,29 @@ function isCitiesGeneratingLeadsIntent(message: string): boolean {
   const hasGeo = /\b(city|cities|geography|geographic|location|locations)\b/.test(m);
   const hasLead = /\b(lead|leads|generating leads|lead generation)\b/.test(m);
   return hasGeo && hasLead;
+}
+
+function isTopCitiesLeadsIntent(message: string): boolean {
+  const m = normalizeMessage(message);
+  const hasCityLike =
+    /\b(top cities|city wise|city-wise|cities generating leads|top locations|location wise|location-wise|cities|from which city)\b/.test(
+      m
+    ) || (/\bwhere\b/.test(m) && /\bleads?\b/.test(m));
+  const hasLeadOrConv = /\b(lead|leads|conversion|conversions|generating)\b/.test(m);
+  return hasCityLike && hasLeadOrConv;
+}
+
+function isTopRegionsAdsIntent(message: string): boolean {
+  const m = normalizeMessage(message);
+  const hasRegion = /\b(region|regions|regional|location|locations|state|states)\b/.test(m);
+  const hasAds = /\b(meta|facebook|ads?|campaign)\b/.test(m);
+  const hasLead = /\b(lead|leads)\b/.test(m);
+  return hasRegion && hasAds && hasLead;
+}
+
+function isCrmIntent(message: string): boolean {
+  const m = normalizeMessage(message);
+  return /\bcrm\b/.test(m);
 }
 
 function isMetaCityLeadsIntent(message: string): boolean {
@@ -1383,6 +1412,21 @@ function defaultToolBundleForMessage(message: string): string[] {
 
   if (isMetaDailyTableIntent(m)) {
     tools.add("get_meta_daily_breakdown_last_30d");
+    return Array.from(tools);
+  }
+
+  if (isTopRegionsAdsIntent(m)) {
+    tools.add("get_meta_top_regions_leads_last_30d");
+    return Array.from(tools);
+  }
+
+  if (isCrmIntent(m) && isGeoIntent(m) && /\bleads?\b/.test(m)) {
+    tools.add("get_crm_top_cities_leads_last_30d");
+    return Array.from(tools);
+  }
+
+  if (isTopCitiesLeadsIntent(m)) {
+    tools.add("get_ga4_top_cities_last_30d");
     return Array.from(tools);
   }
 
@@ -1581,6 +1625,9 @@ function overlapScore(queryTokens: string[], candidateTokens: string[]): number 
 function inferToolFromText(text: string): string | null {
   const m = normalizeMessage(text);
 
+  if (isCrmIntent(m) && isGeoIntent(m) && /\bleads?\b/.test(m)) return "get_crm_top_cities_leads_last_30d";
+  if (isTopRegionsAdsIntent(m)) return "get_meta_top_regions_leads_last_30d";
+  if (isTopCitiesLeadsIntent(m)) return "get_ga4_top_cities_last_30d";
   if (isMetaCityLeadsIntent(m)) return "get_meta_top_regions_leads_last_30d";
   if (isCitiesGeneratingLeadsIntent(m)) return "get_crm_top_cities_leads_last_30d";
 
@@ -1728,6 +1775,9 @@ function setCachedResponse(key: string, payload: ResponsePayload): void {
 function mapMessageToTool(message: string): string | null {
   const m = normalizeMessage(message);
 
+  if (isCrmIntent(m) && isGeoIntent(m) && /\bleads?\b/.test(m)) return "get_crm_top_cities_leads_last_30d";
+  if (isTopRegionsAdsIntent(m)) return "get_meta_top_regions_leads_last_30d";
+  if (isTopCitiesLeadsIntent(m)) return "get_ga4_top_cities_last_30d";
   if (isMetaCityLeadsIntent(m)) return "get_meta_top_regions_leads_last_30d";
   if (isCitiesGeneratingLeadsIntent(m)) return "get_crm_top_cities_leads_last_30d";
 
@@ -1893,12 +1943,28 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
     const runTool = (name: string, args: Record<string, any> = {}) =>
       runToolByName(name, args, toolContext);
 
-    // Deterministic geo-lead routing:
-    // 1) Meta city-leads ask -> region fallback tool (Meta does not reliably provide city-lead breakdown)
-    // 2) Generic city-leads ask -> CRM first, then GA4 cities
-    if (isCitiesGeneratingLeadsIntent(normalizedMessage)) {
+    // Deterministic geo routing (always before OPENAI_FIRST_WITH_TOOLS):
+    // - "top cities leads / city wise / top locations" -> GA4 top cities
+    // - "top regions leads from ads / Meta leads by location" -> Meta top regions
+    // - explicit "CRM" -> CRM top cities
+    if (
+      (isGeoIntent(normalizedMessage) && /\b(?:leads?|conversions?)\b/.test(normalizedMessage)) ||
+      isTopRegionsAdsIntent(normalizedMessage) ||
+      isTopCitiesLeadsIntent(normalizedMessage)
+    ) {
       const rangeLabel = "Last 30 Days";
       const topN = Math.min(5, parseTopCount(userMessage, 5, 5));
+      const requestedBrand = detectBrandFromMessage(normalizedMessage);
+      const accountIdForGeo = resolveBrandAwareAccountId(normalizedMessage, requestedMetaAccountId);
+      const brandForArgs = requestedBrand || undefined;
+
+      if (!requestedBrand && !requestedMetaAccountId) {
+        return res.json({
+          ok: true,
+          answer: "Which brand should I use for geo report: Altis or Coxwell?",
+          meta: { rid, mode: "geo-brand-followup", conversation_id: conversationId || undefined },
+        });
+      }
 
       const tableFromRows = (rows: Array<{
         label: string;
@@ -1917,11 +1983,53 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
                 (r, idx) =>
                   `| ${idx + 1} | ${r.label} | ${r.metric} | ${r.spend} | ${r.cpl} | ${r.notes} |`
               )
-            : ["| - | No data | 0 | - | - | No rows returned for this range. |"]),
+            : ["| - | No data | 0 | - | - | No data returned for this date range. |"]),
         ].join("\n");
 
-      if (isMetaCityLeadsIntent(normalizedMessage)) {
-        const result = await runTool("get_meta_top_regions_leads_last_30d", {});
+      if (isCrmIntent(normalizedMessage)) {
+        const result = await runTool("get_crm_top_cities_leads_last_30d", {
+          account_id: accountIdForGeo,
+          brand: brandForArgs,
+        });
+        if (result?.ok === false) {
+          return res.json({
+            ok: true,
+            answer: `CRM city leads query failed: ${String(result?.error || "Unknown error")}. Query: get_crm_top_cities_leads_last_30d`,
+            tools: [{ name: "get_crm_top_cities_leads_last_30d", result }],
+            meta: { rid, mode: "geo-crm-error", conversation_id: conversationId || undefined },
+          });
+        }
+        const rowsRaw = Array.isArray(result?.rows) ? result.rows.slice(0, topN) : [];
+        const rows = rowsRaw.map((r: any) => ({
+          label: String(r?.city || "(not set)"),
+          metric: formatNumber(Number(r?.leads ?? r?.lead_count ?? 0)),
+          spend: "-",
+          cpl: "-",
+          notes: "CRM city leads",
+        }));
+        const payload: ResponsePayload = {
+          ok: true,
+          answer: `Showing city-wise leads from CRM.\n\n${tableFromRows(rows)}\n\nQuery: get_crm_top_cities_leads_last_30d`,
+          tools: [{ name: "get_crm_top_cities_leads_last_30d", result }],
+          meta: { rid, mode: "geo-top-cities-crm", conversation_id: conversationId || undefined },
+        };
+        setCachedResponse(responseCacheKey, payload);
+        return res.json(payload);
+      }
+
+      if (isTopRegionsAdsIntent(normalizedMessage)) {
+        const result = await runTool("get_meta_top_regions_leads_last_30d", {
+          account_id: accountIdForGeo,
+          brand: brandForArgs,
+        });
+        if (result?.ok === false) {
+          return res.json({
+            ok: true,
+            answer: `Meta region leads query failed: ${String(result?.error || "Unknown error")}. Query: get_meta_top_regions_leads_last_30d`,
+            tools: [{ name: "get_meta_top_regions_leads_last_30d", result }],
+            meta: { rid, mode: "geo-top-regions-meta-error", conversation_id: conversationId || undefined },
+          });
+        }
         const rowsRaw = Array.isArray(result?.rows) ? result.rows.slice(0, topN) : [];
         const currency = String(result?.currency || "INR");
         const rows = rowsRaw.map((r: any) => ({
@@ -1929,59 +2037,48 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
           metric: formatNumber(Number(r?.leads ?? 0)),
           spend: formatCurrency(Number(r?.spend ?? 0), currency),
           cpl: Number.isFinite(Number(r?.cpl)) ? formatCurrency(Number(r?.cpl), currency) : "-",
-          notes: "Meta region fallback (city-wise lead breakdown is unreliable).",
+          notes: "Meta ads region breakdown.",
         }));
         const answer =
-          "Meta doesn't reliably provide city-wise lead breakdown; showing region-wise leads instead.\n\n" +
-          tableFromRows(rows);
+          "Meta doesn't reliably provide city-wise lead breakdown; showing region-wise leads from Meta ads.\n\n" +
+          tableFromRows(rows) +
+          "\n\nQuery: get_meta_top_regions_leads_last_30d";
         const payload: ResponsePayload = {
           ok: true,
           answer,
           tools: [{ name: "get_meta_top_regions_leads_last_30d", result }],
-          meta: { rid, mode: "city-leads-meta-region-fallback", conversation_id: conversationId || undefined },
+          meta: { rid, mode: "geo-top-regions-meta", conversation_id: conversationId || undefined },
         };
         setCachedResponse(responseCacheKey, payload);
         return res.json(payload);
       }
 
-      const crm = await runTool("get_crm_top_cities_leads_last_30d", {});
-      const crmRows = Array.isArray(crm?.rows) ? crm.rows.slice(0, topN) : [];
-      if (crmRows.length > 0) {
-        const rows = crmRows.map((r: any) => ({
-          label: String(r?.city || "(not set)"),
-          metric: formatNumber(Number(r?.lead_count ?? 0)),
-          spend: "-",
-          cpl: "-",
-          notes: "CRM lead records",
-        }));
-        const payload: ResponsePayload = {
+      const ga4 = await runTool("get_ga4_top_cities_last_30d", {
+        account_id: accountIdForGeo,
+        brand: brandForArgs,
+      });
+      if (ga4?.ok === false) {
+        return res.json({
           ok: true,
-          answer: tableFromRows(rows),
-          tools: [{ name: "get_crm_top_cities_leads_last_30d", result: crm }],
-          meta: { rid, mode: "city-leads-crm", conversation_id: conversationId || undefined },
-        };
-        setCachedResponse(responseCacheKey, payload);
-        return res.json(payload);
+          answer: `GA4 top cities query failed: ${String(ga4?.error || "Unknown error")}. Query: get_ga4_top_cities_last_30d`,
+          tools: [{ name: "get_ga4_top_cities_last_30d", result: ga4 }],
+          meta: { rid, mode: "geo-top-cities-ga4-error", conversation_id: conversationId || undefined },
+        });
       }
-
-      const ga4 = await runTool("get_ga4_top_cities_last_30d", {});
       const ga4Rows = Array.isArray(ga4?.rows) ? ga4.rows.slice(0, topN) : [];
       const rows = ga4Rows.map((r: any) => ({
         label: String(r?.city || "(not set)"),
-        metric: formatNumber(Number(r?.conversions ?? 0)),
+        metric: formatNumber(Number(r?.leads ?? 0)),
         spend: "-",
         cpl: "-",
-        notes: "Showing city-wise conversions from website analytics (GA4).",
+        notes: "Website analytics (GA4) city breakdown.",
       }));
-      const note = "Showing city-wise conversions from website analytics (GA4).";
+      const note = "Showing city-wise leads/conversions from website analytics (GA4).";
       const payload: ResponsePayload = {
         ok: true,
-        answer: `${note}\n\n${tableFromRows(rows)}`,
-        tools: [
-          { name: "get_crm_top_cities_leads_last_30d", result: crm },
-          { name: "get_ga4_top_cities_last_30d", result: ga4 },
-        ],
-        meta: { rid, mode: "city-leads-ga4-fallback", conversation_id: conversationId || undefined },
+        answer: `${note}\n\n${tableFromRows(rows)}\n\nQuery: ${String(ga4?.query || "get_ga4_top_cities_last_30d")}`,
+        tools: [{ name: "get_ga4_top_cities_last_30d", result: ga4 }],
+        meta: { rid, mode: "geo-top-cities-ga4", conversation_id: conversationId || undefined },
       };
       setCachedResponse(responseCacheKey, payload);
       return res.json(payload);
