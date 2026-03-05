@@ -1133,12 +1133,24 @@
           <div id="tabHint" class="tab-hint">Coxwell Meta Ads overview</div>
 
           <div id="panelCoxwellMeta" class="kpi-panel active">
-            <div class="kpi meta-card"><div class="name" title="Meta spend for today">Spend (Today)</div><div id="tabCwMetaSpendToday" class="value">-</div></div>
-            <div class="kpi meta-card"><div class="name" title="Meta spend over last 7 days">Spend (Last 7D)</div><div id="tabCwMetaSpend7d" class="value">-</div></div>
-            <div class="kpi meta-card"><div class="name" title="Meta leads generated today">Leads (Today)</div><div id="tabCwMetaLeadsToday" class="value">-</div></div>
-            <div class="kpi meta-card"><div class="name" title="Meta leads generated over last 7 days">Leads (Last 7D)</div><div id="tabCwMetaLeads7d" class="value">-</div></div>
+            <div class="kpi-panel-controls">
+              <select id="cwMetaPeriodSelect" class="kpi-period-select" aria-label="Coxwell Meta Period">
+                <option value="today">Today</option>
+                <option value="yesterday">Yesterday</option>
+                <option value="last_7_days" selected>Last 7 days</option>
+                <option value="last_15_days">Last 15 days</option>
+                <option value="last_30_days">Last 30 days</option>
+              </select>
+            </div>
+            <div class="kpi meta-card"><div class="name" title="Meta spend in selected period">Total Spend (Period)</div><div id="tabCwMetaSpendToday" class="value">-</div></div>
+            <div class="kpi meta-card"><div class="name" title="Meta leads in selected period">Total Leads (Period)</div><div id="tabCwMetaLeadsToday" class="value">-</div></div>
+            <div class="kpi meta-card"><div class="name" title="Meta CPL in selected period">Overall CPL (Period)</div><div id="tabCwMetaBestCpl" class="value">-</div></div>
+            <div class="kpi meta-card"><div class="name" title="Running ads and CPL in selected period">Running Ads + CPL</div><div id="tabCwMetaRunningAdsCpl" class="value mini-list">-</div></div>
+            <div class="kpi meta-card"><div class="name" title="Ad-wise leads in selected period">Leads by Ad Name</div><div id="tabCwMetaLeadsByAd" class="value mini-list">-</div></div>
+            <div class="kpi meta-card"><div class="name" title="City-wise leads in selected period">Leads by City</div><div id="tabCwMetaLeadsByCity" class="value mini-list">-</div></div>
+            <div class="kpi meta-card"><div class="name" title="Meta spend over last 7 days (legacy)">Spend (Last 7D)</div><div id="tabCwMetaSpend7d" class="value">-</div></div>
+            <div class="kpi meta-card"><div class="name" title="Meta leads over last 7 days (legacy)">Leads (Last 7D)</div><div id="tabCwMetaLeads7d" class="value">-</div></div>
             <div class="kpi meta-card"><div class="name" title="Top campaign by leads">Best Campaign</div><div id="tabCwMetaBestCampaign" class="value">-</div></div>
-            <div class="kpi meta-card"><div class="name" title="Cost per lead for best campaign">Best Campaign CPL</div><div id="tabCwMetaBestCpl" class="value">-</div></div>
             <div class="kpi meta-card"><div class="name" title="Meta top regions by leads for last 30 days">Top Regions (30D)</div><div id="tabCwMetaTopRegions30d" class="value mini-list">-</div></div>
           </div>
 
@@ -1172,12 +1184,24 @@
           </div>
 
           <div id="panelAltisMeta" class="kpi-panel">
-            <div class="kpi meta-card"><div class="name" title="Meta spend for today">Spend (Today)</div><div id="tabAltisMetaSpendToday" class="value">-</div></div>
-            <div class="kpi meta-card"><div class="name" title="Meta spend over last 7 days">Spend (Last 7D)</div><div id="tabAltisMetaSpend7d" class="value">-</div></div>
-            <div class="kpi meta-card"><div class="name" title="Meta leads generated today">Leads (Today)</div><div id="tabAltisMetaLeadsToday" class="value">-</div></div>
-            <div class="kpi meta-card"><div class="name" title="Meta leads generated over last 7 days">Leads (Last 7D)</div><div id="tabAltisMetaLeads7d" class="value">-</div></div>
+            <div class="kpi-panel-controls">
+              <select id="altisMetaPeriodSelect" class="kpi-period-select" aria-label="Altis Meta Period">
+                <option value="today">Today</option>
+                <option value="yesterday">Yesterday</option>
+                <option value="last_7_days" selected>Last 7 days</option>
+                <option value="last_15_days">Last 15 days</option>
+                <option value="last_30_days">Last 30 days</option>
+              </select>
+            </div>
+            <div class="kpi meta-card"><div class="name" title="Meta spend in selected period">Total Spend (Period)</div><div id="tabAltisMetaSpendToday" class="value">-</div></div>
+            <div class="kpi meta-card"><div class="name" title="Meta leads in selected period">Total Leads (Period)</div><div id="tabAltisMetaLeadsToday" class="value">-</div></div>
+            <div class="kpi meta-card"><div class="name" title="Meta CPL in selected period">Overall CPL (Period)</div><div id="tabAltisMetaBestCpl" class="value">-</div></div>
+            <div class="kpi meta-card"><div class="name" title="Running ads and CPL in selected period">Running Ads + CPL</div><div id="tabAltisMetaRunningAdsCpl" class="value mini-list">-</div></div>
+            <div class="kpi meta-card"><div class="name" title="Ad-wise leads in selected period">Leads by Ad Name</div><div id="tabAltisMetaLeadsByAd" class="value mini-list">-</div></div>
+            <div class="kpi meta-card"><div class="name" title="City-wise leads in selected period">Leads by City</div><div id="tabAltisMetaLeadsByCity" class="value mini-list">-</div></div>
+            <div class="kpi meta-card"><div class="name" title="Meta spend over last 7 days (legacy)">Spend (Last 7D)</div><div id="tabAltisMetaSpend7d" class="value">-</div></div>
+            <div class="kpi meta-card"><div class="name" title="Meta leads over last 7 days (legacy)">Leads (Last 7D)</div><div id="tabAltisMetaLeads7d" class="value">-</div></div>
             <div class="kpi meta-card"><div class="name" title="Top campaign by leads">Best Campaign</div><div id="tabAltisMetaBestCampaign" class="value">-</div></div>
-            <div class="kpi meta-card"><div class="name" title="Cost per lead for best campaign">Best Campaign CPL</div><div id="tabAltisMetaBestCpl" class="value">-</div></div>
             <div class="kpi meta-card"><div class="name" title="Meta top regions by leads for last 30 days">Top Regions (30D)</div><div id="tabAltisMetaTopRegions30d" class="value mini-list">-</div></div>
           </div>
 
@@ -1334,11 +1358,15 @@
         panelAltisIg: document.getElementById("panelAltisIg"),
         panelAltisGa4: document.getElementById("panelAltisGa4"),
         tabCwMetaSpendToday: document.getElementById("tabCwMetaSpendToday"),
+        cwMetaPeriodSelect: document.getElementById("cwMetaPeriodSelect"),
         tabCwMetaSpend7d: document.getElementById("tabCwMetaSpend7d"),
         tabCwMetaLeadsToday: document.getElementById("tabCwMetaLeadsToday"),
         tabCwMetaLeads7d: document.getElementById("tabCwMetaLeads7d"),
         tabCwMetaBestCampaign: document.getElementById("tabCwMetaBestCampaign"),
         tabCwMetaBestCpl: document.getElementById("tabCwMetaBestCpl"),
+        tabCwMetaRunningAdsCpl: document.getElementById("tabCwMetaRunningAdsCpl"),
+        tabCwMetaLeadsByAd: document.getElementById("tabCwMetaLeadsByAd"),
+        tabCwMetaLeadsByCity: document.getElementById("tabCwMetaLeadsByCity"),
         tabCwMetaTopRegions30d: document.getElementById("tabCwMetaTopRegions30d"),
         tabCwIgFollowers: document.getElementById("tabCwIgFollowers"),
         tabCwIgFollowing: document.getElementById("tabCwIgFollowing"),
@@ -1367,11 +1395,15 @@
         tabCwGa4City15d: document.getElementById("tabCwGa4City15d"),
         tabCwGa4City30d: document.getElementById("tabCwGa4City30d"),
         tabAltisMetaSpendToday: document.getElementById("tabAltisMetaSpendToday"),
+        altisMetaPeriodSelect: document.getElementById("altisMetaPeriodSelect"),
         tabAltisMetaSpend7d: document.getElementById("tabAltisMetaSpend7d"),
         tabAltisMetaLeadsToday: document.getElementById("tabAltisMetaLeadsToday"),
         tabAltisMetaLeads7d: document.getElementById("tabAltisMetaLeads7d"),
         tabAltisMetaBestCampaign: document.getElementById("tabAltisMetaBestCampaign"),
         tabAltisMetaBestCpl: document.getElementById("tabAltisMetaBestCpl"),
+        tabAltisMetaRunningAdsCpl: document.getElementById("tabAltisMetaRunningAdsCpl"),
+        tabAltisMetaLeadsByAd: document.getElementById("tabAltisMetaLeadsByAd"),
+        tabAltisMetaLeadsByCity: document.getElementById("tabAltisMetaLeadsByCity"),
         tabAltisMetaTopRegions30d: document.getElementById("tabAltisMetaTopRegions30d"),
         tabAltisIgFollowers: document.getElementById("tabAltisIgFollowers"),
         tabAltisIgFollowing: document.getElementById("tabAltisIgFollowing"),
@@ -1476,15 +1508,22 @@
       let activeKpiTab = localStorage.getItem("mai-kpi-tab") || "coxwell-meta";
       let compactMode = localStorage.getItem("mai-compact") === "1";
       const GA4_PERIODS = new Set(["today", "yesterday", "last_7_days", "last_15_days", "last_30_days"]);
+      const META_PERIODS = new Set(["today", "yesterday", "last_7_days", "last_15_days", "last_30_days"]);
       let coxwellGa4Period = localStorage.getItem("mai-ga4-period-coxwell") || "last_30_days";
       let altisGa4Period = localStorage.getItem("mai-ga4-period-altis") || "last_30_days";
+      let coxwellMetaPeriod = localStorage.getItem("mai-meta-period-coxwell") || "last_7_days";
+      let altisMetaPeriod = localStorage.getItem("mai-meta-period-altis") || "last_7_days";
       const kpiPrevValue = new Map();
       let kpiFetchInFlight = false;
       let kpiRateLimitUntil = 0;
       coxwellGa4Period = sanitizeGa4Period(coxwellGa4Period);
       altisGa4Period = sanitizeGa4Period(altisGa4Period);
+      coxwellMetaPeriod = sanitizeMetaPeriod(coxwellMetaPeriod);
+      altisMetaPeriod = sanitizeMetaPeriod(altisMetaPeriod);
       if (el.cwGa4PeriodSelect) el.cwGa4PeriodSelect.value = coxwellGa4Period;
       if (el.altisGa4PeriodSelect) el.altisGa4PeriodSelect.value = altisGa4Period;
+      if (el.cwMetaPeriodSelect) el.cwMetaPeriodSelect.value = coxwellMetaPeriod;
+      if (el.altisMetaPeriodSelect) el.altisMetaPeriodSelect.value = altisMetaPeriod;
       const TAB_QUERIES = {
         "coxwell-meta": [
           "Coxwell meta spend today",
@@ -1541,6 +1580,81 @@
       }
       function sanitizeGa4Period(value) {
         return GA4_PERIODS.has(value) ? value : "last_30_days";
+      }
+      function sanitizeMetaPeriod(value) {
+        return META_PERIODS.has(value) ? value : "last_7_days";
+      }
+      function formatYmdIST(date) {
+        const utcMs = date.getTime() + date.getTimezoneOffset() * 60000;
+        const ist = new Date(utcMs + 5.5 * 60 * 60000);
+        const y = ist.getUTCFullYear();
+        const m = String(ist.getUTCMonth() + 1).padStart(2, "0");
+        const d = String(ist.getUTCDate()).padStart(2, "0");
+        return `${y}-${m}-${d}`;
+      }
+      function addDaysYmd(ymd, deltaDays) {
+        const d = new Date(`${ymd}T00:00:00Z`);
+        d.setUTCDate(d.getUTCDate() + deltaDays);
+        return formatYmdIST(d);
+      }
+      function metaDateRangeForPeriod(period) {
+        const today = formatYmdIST(new Date());
+        if (period === "today") return { since: today, until: today };
+        if (period === "yesterday") {
+          const y = addDaysYmd(today, -1);
+          return { since: y, until: y };
+        }
+        if (period === "last_7_days") return { since: addDaysYmd(today, -6), until: today };
+        if (period === "last_15_days") return { since: addDaysYmd(today, -14), until: today };
+        return { since: addDaysYmd(today, -29), until: today };
+      }
+      function normalizeMetaAdsRows(resp) {
+        if (!resp?.ok || !Array.isArray(resp?.json?.rows)) return [];
+        return resp.json.rows
+          .map((r) => ({
+            ad_name: String(r?.ad_name || "Unnamed ad"),
+            leads: Number(r?.leads ?? 0),
+            spend: Number(r?.spend ?? 0),
+            cpl: Number.isFinite(Number(r?.cpl)) ? Number(r?.cpl) : null,
+            status: String(r?.status || ""),
+          }))
+          .filter((r) => r.ad_name);
+      }
+      function summarizeMetaPeriod(rows) {
+        const totals = rows.reduce(
+          (acc, r) => {
+            acc.spend += Number(r.spend || 0);
+            acc.leads += Number(r.leads || 0);
+            return acc;
+          },
+          { spend: 0, leads: 0 }
+        );
+        const cpl = totals.leads > 0 ? totals.spend / totals.leads : NaN;
+        return { ...totals, cpl };
+      }
+      function formatAdsCplList(rows) {
+        if (!rows.length) return "No running ads in selected period.";
+        return rows
+          .slice(0, 10)
+          .map((r, i) => {
+            const cplText = Number.isFinite(Number(r.cpl)) && Number(r.cpl) > 0 ? formatCurrencyINR(r.cpl) : "-";
+            return `${i + 1}. ${r.ad_name} | Leads ${r.leads} | Spend ${formatCurrencyINR(r.spend)} | CPL ${cplText}`;
+          })
+          .join("\n");
+      }
+      function formatLeadsByAdList(rows) {
+        if (!rows.length) return "No ad-wise leads found.";
+        return rows
+          .slice(0, 10)
+          .map((r, i) => `${i + 1}. ${r.ad_name}: ${r.leads} lead(s)`)
+          .join("\n");
+      }
+      function formatLeadsByCityList(resp) {
+        if (!resp?.ok || !Array.isArray(resp?.json?.rows) || !resp.json.rows.length) return "No city-wise lead data.";
+        return resp.json.rows
+          .slice(0, 10)
+          .map((r, i) => `${i + 1}. ${String(r?.label || "-")}: ${Number(r?.leads || 0)} lead(s)`)
+          .join("\n");
       }
       function nowIso() {
         return new Date().toISOString();
@@ -2249,6 +2363,9 @@
         el.tabCwMetaLeads7d.textContent = "...";
         el.tabCwMetaBestCampaign.textContent = "...";
         el.tabCwMetaBestCpl.textContent = "...";
+        el.tabCwMetaRunningAdsCpl.textContent = "...";
+        el.tabCwMetaLeadsByAd.textContent = "...";
+        el.tabCwMetaLeadsByCity.textContent = "...";
         el.tabCwMetaTopRegions30d.textContent = "...";
         el.tabCwIgFollowers.textContent = "...";
         el.tabCwIgFollowing.textContent = "...";
@@ -2282,6 +2399,9 @@
         el.tabAltisMetaLeads7d.textContent = "...";
         el.tabAltisMetaBestCampaign.textContent = "...";
         el.tabAltisMetaBestCpl.textContent = "...";
+        el.tabAltisMetaRunningAdsCpl.textContent = "...";
+        el.tabAltisMetaLeadsByAd.textContent = "...";
+        el.tabAltisMetaLeadsByCity.textContent = "...";
         el.tabAltisMetaTopRegions30d.textContent = "...";
         el.tabAltisIgFollowers.textContent = "...";
         el.tabAltisIgFollowing.textContent = "...";
@@ -2592,6 +2712,32 @@
           getJson("/api/ga4/debug-tag"),
         ]);
 
+        const coxwellMetaRange = metaDateRangeForPeriod(coxwellMetaPeriod);
+        const altisMetaRange = metaDateRangeForPeriod(altisMetaPeriod);
+        const [
+          coxwellMetaAdsByPeriod,
+          coxwellMetaCityByPeriod,
+          altisMetaAdsByPeriod,
+          altisMetaCityByPeriod,
+        ] = await Promise.all([
+          postJson("/api/tools/run", {
+            tool: "get_meta_ads_list",
+            args: { account_id: brandAccounts.coxwell, limit: 50, ...coxwellMetaRange },
+          }),
+          postJson("/api/tools/run", {
+            tool: "get_meta_geo_breakdown",
+            args: { account_id: brandAccounts.coxwell, breakdown: "city", limit: 10, ...coxwellMetaRange },
+          }),
+          postJson("/api/tools/run", {
+            tool: "get_meta_ads_list",
+            args: { account_id: brandAccounts.altis, limit: 50, ...altisMetaRange },
+          }),
+          postJson("/api/tools/run", {
+            tool: "get_meta_geo_breakdown",
+            args: { account_id: brandAccounts.altis, breakdown: "city", limit: 10, ...altisMetaRange },
+          }),
+        ]);
+
         const criticalCalls = [
           leads,
           spendToday,
@@ -2664,14 +2810,19 @@
           setKpiCardMetric(el.kpiIgBestReel, "-");
         }
 
-        el.tabCwMetaSpendToday.textContent = coxwellMetaSpendToday.ok
-          ? formatCurrencyINR(coxwellMetaSpendToday.json?.spend)
+        const coxwellMetaAdsRowsPeriod = normalizeMetaAdsRows(coxwellMetaAdsByPeriod)
+          .filter((r) => Number(r.leads) > 0 || Number(r.spend) > 0 || String(r.status).toUpperCase() === "ACTIVE")
+          .sort((a, b) => Number(b.leads) - Number(a.leads) || Number(b.spend) - Number(a.spend));
+        const coxwellMetaSummaryPeriod = summarizeMetaPeriod(coxwellMetaAdsRowsPeriod);
+        const coxwellCplText = Number.isFinite(coxwellMetaSummaryPeriod.cpl)
+          ? formatCurrencyINR(coxwellMetaSummaryPeriod.cpl)
           : "-";
+        el.tabCwMetaSpendToday.textContent = formatCurrencyINR(coxwellMetaSummaryPeriod.spend);
         el.tabCwMetaSpend7d.textContent = coxwellMetaSpend7d.ok
           ? formatCurrencyINR(coxwellMetaSpend7d.json?.spend)
           : "-";
-        el.tabCwMetaLeadsToday.textContent = coxwellMetaLeadsToday.ok
-          ? String(coxwellMetaLeadsToday.json?.leads ?? "-")
+        el.tabCwMetaLeadsToday.textContent = Number.isFinite(coxwellMetaSummaryPeriod.leads)
+          ? String(coxwellMetaSummaryPeriod.leads)
           : "-";
         el.tabCwMetaLeads7d.textContent = coxwellMetaLeads7d.ok
           ? String(coxwellMetaLeads7d.json?.leads ?? "-")
@@ -2679,9 +2830,10 @@
         el.tabCwMetaBestCampaign.textContent = coxwellMetaBestCampaign.ok
           ? String(coxwellMetaBestCampaign.json?.best?.campaign_name || "No campaign")
           : "-";
-        el.tabCwMetaBestCpl.textContent = coxwellMetaBestCampaign.ok
-          ? formatCurrencyINR(coxwellMetaBestCampaign.json?.best?.cpl)
-          : "-";
+        el.tabCwMetaBestCpl.textContent = coxwellCplText;
+        el.tabCwMetaRunningAdsCpl.textContent = formatAdsCplList(coxwellMetaAdsRowsPeriod);
+        el.tabCwMetaLeadsByAd.textContent = formatLeadsByAdList(coxwellMetaAdsRowsPeriod);
+        el.tabCwMetaLeadsByCity.textContent = formatLeadsByCityList(coxwellMetaCityByPeriod);
         el.tabCwMetaTopRegions30d.textContent = coxwellMetaTopRegions30d.ok
           ? (Array.isArray(coxwellMetaTopRegions30d.json?.rows)
               ? coxwellMetaTopRegions30d.json.rows
@@ -2769,14 +2921,19 @@
           ? `${String(coxwellGa4City30d.json?.city ?? "-")} (${Number(coxwellGa4City30d.json?.sessions ?? 0)})`
           : "-";
 
-        el.tabAltisMetaSpendToday.textContent = altisMetaSpendToday.ok
-          ? formatCurrencyINR(altisMetaSpendToday.json?.spend)
+        const altisMetaAdsRowsPeriod = normalizeMetaAdsRows(altisMetaAdsByPeriod)
+          .filter((r) => Number(r.leads) > 0 || Number(r.spend) > 0 || String(r.status).toUpperCase() === "ACTIVE")
+          .sort((a, b) => Number(b.leads) - Number(a.leads) || Number(b.spend) - Number(a.spend));
+        const altisMetaSummaryPeriod = summarizeMetaPeriod(altisMetaAdsRowsPeriod);
+        const altisCplText = Number.isFinite(altisMetaSummaryPeriod.cpl)
+          ? formatCurrencyINR(altisMetaSummaryPeriod.cpl)
           : "-";
+        el.tabAltisMetaSpendToday.textContent = formatCurrencyINR(altisMetaSummaryPeriod.spend);
         el.tabAltisMetaSpend7d.textContent = altisMetaSpend7d.ok
           ? formatCurrencyINR(altisMetaSpend7d.json?.spend)
           : "-";
-        el.tabAltisMetaLeadsToday.textContent = altisMetaLeadsToday.ok
-          ? String(altisMetaLeadsToday.json?.leads ?? "-")
+        el.tabAltisMetaLeadsToday.textContent = Number.isFinite(altisMetaSummaryPeriod.leads)
+          ? String(altisMetaSummaryPeriod.leads)
           : "-";
         el.tabAltisMetaLeads7d.textContent = altisMetaLeads7d.ok
           ? String(altisMetaLeads7d.json?.leads ?? "-")
@@ -2784,9 +2941,10 @@
         el.tabAltisMetaBestCampaign.textContent = altisMetaBestCampaign.ok
           ? String(altisMetaBestCampaign.json?.best?.campaign_name || "No campaign")
           : "-";
-        el.tabAltisMetaBestCpl.textContent = altisMetaBestCampaign.ok
-          ? formatCurrencyINR(altisMetaBestCampaign.json?.best?.cpl)
-          : "-";
+        el.tabAltisMetaBestCpl.textContent = altisCplText;
+        el.tabAltisMetaRunningAdsCpl.textContent = formatAdsCplList(altisMetaAdsRowsPeriod);
+        el.tabAltisMetaLeadsByAd.textContent = formatLeadsByAdList(altisMetaAdsRowsPeriod);
+        el.tabAltisMetaLeadsByCity.textContent = formatLeadsByCityList(altisMetaCityByPeriod);
         el.tabAltisMetaTopRegions30d.textContent = altisMetaTopRegions30d.ok
           ? (Array.isArray(altisMetaTopRegions30d.json?.rows)
               ? altisMetaTopRegions30d.json.rows
@@ -3449,6 +3607,20 @@
         el.altisGa4PeriodSelect.onchange = () => {
           altisGa4Period = sanitizeGa4Period(el.altisGa4PeriodSelect.value);
           localStorage.setItem("mai-ga4-period-altis", altisGa4Period);
+          fetchLiveKpis();
+        };
+      }
+      if (el.cwMetaPeriodSelect) {
+        el.cwMetaPeriodSelect.onchange = () => {
+          coxwellMetaPeriod = sanitizeMetaPeriod(el.cwMetaPeriodSelect.value);
+          localStorage.setItem("mai-meta-period-coxwell", coxwellMetaPeriod);
+          fetchLiveKpis();
+        };
+      }
+      if (el.altisMetaPeriodSelect) {
+        el.altisMetaPeriodSelect.onchange = () => {
+          altisMetaPeriod = sanitizeMetaPeriod(el.altisMetaPeriodSelect.value);
+          localStorage.setItem("mai-meta-period-altis", altisMetaPeriod);
           fetchLiveKpis();
         };
       }
