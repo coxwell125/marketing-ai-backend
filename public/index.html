@@ -1653,7 +1653,12 @@
         if (!resp?.ok || !Array.isArray(resp?.json?.rows) || !resp.json.rows.length) return "No city-wise lead data.";
         return resp.json.rows
           .slice(0, 10)
-          .map((r, i) => `${i + 1}. ${String(r?.label || "-")}: ${Number(r?.leads || 0)} lead(s)`)
+          .map((r, i) => {
+            const name = String(
+              r?.geo || r?.city || r?.region || r?.country || r?.label || "Unknown"
+            ).trim() || "Unknown";
+            return `${i + 1}. ${name}: ${Number(r?.leads || 0)} lead(s)`;
+          })
           .join("\n");
       }
       function nowIso() {
